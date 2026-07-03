@@ -1,0 +1,35 @@
+{
+  "tripId": "sample-trip",
+  "items": [
+    {
+      "id": "sample-task-001",
+      "title": "替换 sample-trip 为自己的真实行程 JSON",
+      "dueDate": "2026-07-20",
+      "dueLabel": "开始使用前",
+      "relatedDate": "2026-08-06",
+      "type": "setup",
+      "note": "这是演示待办，朋友部署后应删除或改成自己的事项。"
+    },
+    {
+      "id": "sample-task-002",
+      "title": "确认是否需要开启 Cloudflare Access",
+      "dueDate": "2026-07-21",
+      "dueLabel": "分享前",
+      "relatedDate": "2026-08-06",
+      "type": "privacy",
+      "note": "如果行程包含酒店、航班、订单号，建议开启访问保护。"
+    },
+    {
+      "id": "sample-task-003",
+      "title": "预约卢浮宫示例门票",
+      "dueDate": "2026-07-25",
+      "dueLabel": "出发前",
+      "relatedDate": "2026-08-07",
+      "relatedItemId": "demo-20260807-01",
+      "type": "booking",
+      "urlLabel": "示例官网",
+      "url": "https://www.louvre.fr/",
+      "note": "演示购票待办；不是实际订单。"
+    }
+  ]
+}

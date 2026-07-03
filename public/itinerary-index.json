@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "defaultTripId": "sample-trip",
+  "trips": [
+    {
+      "id": "sample-trip",
+      "title": "France 10-Day Demo",
+      "dateStart": "2026-08-06",
+      "dateEnd": "2026-08-15",
+      "status": "demo",
+      "lastUpdated": "2026-07-03",
+      "path": "trips/sample-trip/trip.json",
+      "metaPath": "trips/sample-trip/trip-meta.json",
+      "reviewPath": "trips/sample-trip/review-needed.json"
+    }
+  ]
+}
