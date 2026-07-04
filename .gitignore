@@ -1,0 +1,35 @@
+# Local/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets and private local config
+.env
+.env.*
+.dev.vars
+*.key
+*.pem
+*secret*
+*token*
+
+# Raw private travel materials
+*.xlsx
+*.xls
+*.xlsm
+*.pdf
+*.heic
+*.jpg
+*.jpeg
+*.png
+!public/icons/*.png
+
+# Local backups / exports
+*-backup-*.json
+backup*.json
+indexeddb*.json
+
+# Never copy Codex or repo state into template
+.git/
+.agents/
+.codex/
