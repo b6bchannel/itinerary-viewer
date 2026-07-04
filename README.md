@@ -1,77 +1,118 @@
-# Travel Planner
+# Travel Plan
 
-Travel Planner 是一个可离线使用的个人旅行行程 PWA Starter Kit。它可以部署成静态网站，并在 iPhone Safari 中“添加到主屏幕”。
+Travel Plan 是一个空白旅行 PWA。网页本身不包含真实行程；用户把自己的 `.travel.json` 单文件旅行包导入到浏览器后使用。
 
-本仓库只包含程序壳和完全虚构的 sample trip，不包含任何真实行程、账号配置或密钥。
+旅行数据、手机端编辑、待办完成状态、删除状态、自由备注和备份都只保存在这台设备的浏览器 IndexedDB 中，不需要账号、不需要后端、不需要 API Key。
 
-## 产品优势
-- 本人非常喜欢旅行和做行程，但是目前市面上所有旅行类APP都面临着自由度不够高的痛点，所以决定手搓最适合本人体质的版本。
-- 市面上所有APP都依赖原生景点库，对小众景点收录不全、需要手动添加，而我不喜欢手动添加（而且还要去搜经纬度等信息）；
-- 自由行、自驾游需要在Google Map预存大量收藏点，本品支持一键跳转Google Map；
-- Wanderlog需要交$39.99年费才能离线使用，而本品通过缓存功能可以实现离线使用，立省$39.99 (但不幸的是交了更多钱给Codex);
-- Wanderlog需要交$39.99年费才能导入pdf、读邮件，而通过AI生成json，本品再次立省；
-- 市面上的旅行APP在添加项目时被景点、交通、酒店、餐饮等几大项框死，自己加的备注无法进入时间轴，但是在这里想写什么就写什么；
-- 不会因为翻译、英语和当地语言混淆的问题找不到景点，你想说什么语言，就用什么语言；
-- 其他APP分享给旅伴，旅伴都要注册该APP，本品只要有Gmail就能用！
-- 多人行程不再是只能看一份行程单，旅伴们可以在本地自由编辑自己的航班和事项；
-- 绝无没完没了的广告、升级PRO、占用手机内存；
-- 赢上加赢，赢麻了！
+## 功能介绍
 
-## 功能
+- 导入一个 `.travel.json` 单文件旅行包后离线查看行程。
+- 今日 / 明日模式：快速看当天和明天的关键安排。
+- 完整行程模式：按日期查看全部行程。
+- 地图跳转：
+  - 海外旅程默认 Google Maps；
+  - 中国境内旅程可默认高德地图；
+  - 单个地点也可以单独指定地图提供方。
+- 天气卡片：联网时更新，离线时显示缓存。
+- 本机编辑：
+  - 修改、新增、删除行程事项；
+  - 新增或编辑交通事项；
+  - 编辑每日标题；
+  - 每日自由备注自动保存。
+- 待办清单：
+  - 完成、恢复、编辑、删除；
+  - 删除后 5 秒内可撤销；
+  - 状态只保存在本机。
+- 本机备份：
+  - 导出当前旅行包和本机修改；
+  - 导入备份文件恢复。
 
-- 今日 / 明日执行页
-- 完整行程按日期浏览
-- 酒店、交通、重要提醒 brief
-- Google Maps 跳转，不需要 Google Maps API Key
-- Open-Meteo 天气，不需要 API Key
-- PWA 离线缓存
-- IndexedDB 本机编辑、新增、删除、自由备注、待办完成状态
-- 本机备份导出 / 导入 / 重置
+## 第一次怎么使用
 
-## 文件结构
+1. 打开 Travel Plan 网页。
+2. 如果你还没有旅行包，可以先点 `查看示例旅程` 测试。
+3. 有自己的旅行包后，点 `导入旅行包`。
+4. 选择一个 `.travel.json` 文件。
+5. 导入后即可查看、编辑和离线使用。
+6. 旅行中建议定期在首页底部点 `导出`，把备份保存到 iPhone「文件」App、微信文件传输助手或其他自己能找回的位置。
+
+## 需要给 AI 哪些文件
+
+如果你想让 ChatGPT / Codex 帮你把 Excel、PDF、Markdown 或文字行程转成 Travel Plan 可导入的旅行包，请给 AI：
 
 ```text
-public/
-  index.html
-  styles.css
-  app.js
-  manifest.json
-  service-worker.js
-  itinerary-index.json
-  icons/
-  trips/
-    sample-trip/
-      trip.json
-      trip-meta.json
-      review-needed.json
 TRIP_SCHEMA.md
-FRIEND_SETUP.md
-PRIVACY_CHECKLIST.md
+你的 Excel / PDF / Markdown / 文字行程资料
 ```
 
-## 本地查看
+如果你已经有一个旧的 `.travel.json`，想在它基础上更新，也一起发给 AI。
 
-在项目根目录运行：
+## 给 AI 的 prompt
 
-```bash
-python -m http.server 8000 -d public
-```
-
-然后打开：
+可以直接复制这段：
 
 ```text
-http://127.0.0.1:8000
+请根据 TRIP_SCHEMA.md，把我提供的旅行资料整理成 Travel Plan 可导入的单文件旅行包。
+
+请只输出一个完整 JSON 文件，文件名按规则生成：
+第一个到达城市 + 旅行开始日期，例如 paris_260806.travel.json。
+如果城市是中文，用拼音；如果是小语种，用最接近英语的形式。
+
+要求：
+1. 顶层 kind 必须是 "travel-plan-package"。
+2. version 使用 1。
+3. tripId 使用小写英文、数字和连字符。
+4. tripMeta、trip、reviewNeeded 都必须完整。
+5. 日期格式使用 YYYY-MM-DD。
+6. 交通、酒店、重要提醒要进入 days[].brief。
+7. 海外旅程 mapProvider 可省略或写 "google"；中国境内旅程 mapProvider 写 "amap"；不要自动猜测。
+8. mapTargets[].query 优先使用当地地图最容易搜到的官方名称、完整地址或明确地点描述。
+9. 不确定的内容放入 reviewNeeded.items。
+10. 不要编造订单号、航班号、酒店地址或预约信息；不确定就写待确认。
+11. 初始旅行包不要写 localData，或写 null。
+12. 不要输出解释，不要输出 Markdown，只输出 JSON 内容。
 ```
 
-## 替换成自己的行程
+AI 输出后，把内容保存成一个以 `.travel.json` 结尾的文件，例如：
 
-1. 阅读 `TRIP_SCHEMA.md`。
-2. 让 AI 根据你的 Excel / PDF / Markdown 生成 `trip.json`、`trip-meta.json`、`review-needed.json` 和 `itinerary-index.json`。
-3. 上传到 `public/trips/<your-trip-id>/`，并更新 `public/itinerary-index.json`。
-4. 上传到 GitHub，Cloudflare Pages 会自动部署。
+```text
+paris_260806.travel.json
+```
 
-详细步骤见 `FRIEND_SETUP.md`。
+## 怎么导入
+
+1. 打开 Travel Plan。
+2. 点首页的 `导入旅行包`，或点顶部旅途入口后选择 `导入旅行包`。
+3. 选择 AI 生成的 `.travel.json` 文件。
+4. 页面刷新后会显示新旅程。
+5. 如果导入错了，可以在「我的旅途」抽屉里删除本机旅途，再重新导入。
+
+## 部署说明
+
+部署目录使用：
+
+```text
+public
+```
+
+可以部署到 Cloudflare Pages、GitHub Pages 或其他纯静态网页托管服务。
+
+不需要：
+
+- 后端服务器；
+- 数据库；
+- Cloudflare Workers；
+- 账号系统；
+- Google Maps API Key；
+- 高德地图 Key；
+- 付费 API。
 
 ## 隐私提醒
 
-如果 JSON 里有航班号、酒店名、地址、订单号，请不要公开仓库。建议使用 private GitHub repo，并按需开启 Cloudflare Access。
+公开仓库里不要放真实 `.travel.json`，因为里面可能包含酒店、航班、地址、订单号和个人备注。
+
+推荐做法：
+
+- 公开或分享这个空白 PWA；
+- 真实旅行包只保存在自己手机、电脑或私下发送；
+- 旅行中定期导出备份。
