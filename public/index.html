@@ -29,6 +29,12 @@
       <p id="trip-summary" class="trip-summary">正在读取行程……</p>
       <p id="local-save-status" class="local-save-status">正在准备本地保存……</p>
     </div>
+    <button id="trip-manager-trigger" class="trip-manager-trigger" type="button" hidden>
+      <span class="trip-manager-trigger__label">旅途</span>
+      <span id="trip-manager-title" class="trip-manager-trigger__title">尚未导入旅途</span>
+      <span id="trip-manager-meta" class="trip-manager-trigger__meta">导入旅行包后开始</span>
+      <span class="trip-manager-trigger__chevron" aria-hidden="true">⌄</span>
+    </button>
   </header>
 
   <main id="app" class="app-shell" hidden>
@@ -100,7 +106,7 @@
 
   <section id="load-error" class="load-error" hidden>
     <h2>暂时无法读取行程</h2>
-    <p>请检查 public/itinerary-index.json 和对应 trips 文件夹里的 trip.json 是否存在。</p>
+    <p>请从右上角菜单导入一个 .travel.json 旅行包。</p>
   </section>
 
   <dialog id="edit-dialog" class="edit-dialog">
@@ -243,7 +249,25 @@
     </form>
   </dialog>
 
-  <input id="backup-file-input" type="file" accept="application/json,.json" hidden>
+  <dialog id="trip-manager-dialog" class="trip-manager-dialog">
+    <div class="trip-manager-sheet">
+      <div class="trip-manager-sheet__grab" aria-hidden="true"></div>
+      <header class="trip-manager-sheet__header">
+        <h2>我的旅途</h2>
+        <button id="close-trip-manager" class="dialog-close" type="button" aria-label="关闭">×</button>
+      </header>
+      <div id="trip-manager-content" class="trip-manager-content"></div>
+      <footer class="trip-manager-actions">
+        <button id="trip-manager-import" class="trip-manager-action" type="button">
+          <span aria-hidden="true">↧</span>
+          <span><strong>导入旅行包</strong><small>仅保存到这台设备</small></span>
+        </button>
+      </footer>
+    </div>
+  </dialog>
+
+  <input id="backup-file-input" type="file" accept="application/json,.json,.travel.json" hidden>
+  <input id="trip-import-input" type="file" accept="application/json,.json,.travel.json" hidden>
 
   <script src="app.js"></script>
 </body>

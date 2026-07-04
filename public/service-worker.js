@@ -1,16 +1,12 @@
 "use strict";
 
-const CACHE_NAME = "travel-plan-starter-v1";
+const CACHE_NAME = "travel-plan-starter-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./manifest.json",
-  "./itinerary-index.json",
-  "./trips/sample-trip/trip.json",
-  "./trips/sample-trip/trip-meta.json",
-  "./trips/sample-trip/review-needed.json",
   "./icons/icon.png",
   "./icons/icon-192.png",
   "./icons/apple-touch-icon.png",
@@ -21,6 +17,7 @@ const APP_SHELL = [
   "./icons/apple-touch-icon-180x180.png",
   "./icons/apple-touch-icon-192x192.png",
   "./icons/apple-touch-icon-512x512.png",
+  "./sample/paris_260806.travel.json",
 ];
 
 self.addEventListener("install", (event) => {

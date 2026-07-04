@@ -1,8 +1,8 @@
 "use strict";
 
 const DB_NAME = "travel-plan-starter";
-const DB_VERSION = 6;
-const DEFAULT_TRIP_ID = "sample-trip";
+const DB_VERSION = 7;
+const DEFAULT_TRIP_ID = "";
 const NOTE_SAVE_DELAY = 500;
 const WEATHER_CACHE_PREFIX = "weather:";
 
@@ -72,6 +72,7 @@ const state = {
   editingEventId: null,
   editingIsNew: false,
   editingDayDate: null,
+  travelPackage: null,
 };
 
 const elements = {
@@ -79,6 +80,14 @@ const elements = {
   error: document.querySelector("#load-error"),
   tripSummary: document.querySelector("#trip-summary"),
   localSaveStatus: document.querySelector("#local-save-status"),
+  tripManagerTrigger: document.querySelector("#trip-manager-trigger"),
+  tripManagerTitle: document.querySelector("#trip-manager-title"),
+  tripManagerMeta: document.querySelector("#trip-manager-meta"),
+  tripManagerDialog: document.querySelector("#trip-manager-dialog"),
+  tripManagerContent: document.querySelector("#trip-manager-content"),
+  closeTripManager: document.querySelector("#close-trip-manager"),
+  tripManagerImport: document.querySelector("#trip-manager-import"),
+  tripImportInput: document.querySelector("#trip-import-input"),
   showToday: document.querySelector("#show-today"),
   showAll: document.querySelector("#show-all"),
   todayView: document.querySelector("#today-view"),
@@ -177,6 +186,9 @@ function openDatabase() {
       if (!database.objectStoreNames.contains("dayTitles")) {
         database.createObjectStore("dayTitles", { keyPath: "date" });
       }
+      if (!database.objectStoreNames.contains("travelPackages")) {
+        database.createObjectStore("travelPackages", { keyPath: "id" });
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -207,6 +219,310 @@ function addToStore(storeName, value) {
 
 function deleteFromStore(storeName, key) {
   return databaseRequest(storeName, "readwrite", (store) => store.delete(key));
+}
+
+function getFromStore(storeName, key) {
+  return databaseRequest(storeName, "readonly", (store) => store.get(key));
+}
+
+function normalizeTravelPackage(payload) {
+  const trip = payload?.trip || payload?.itinerary;
+  const tripId = payload?.tripId || trip?.metadata?.tripId || payload?.tripMeta?.id || "";
+  if (payload?.kind !== "travel-plan-package" || !tripId || !trip || !Array.isArray(trip.days) || !Array.isArray(trip.events)) {
+    throw new Error("这不是有效的 Travel Plan 旅行包");
+  }
+  const reviewNeeded = payload.reviewNeeded || { tripId, items: [] };
+  return {
+    id: tripId,
+    kind: "travel-plan-package",
+    version: 1,
+    tripId,
+    fileName: payload.fileName || makeTravelFileName(trip),
+    tripMeta: payload.tripMeta || {
+      id: tripId,
+      title: trip.metadata?.tripTitle || tripId,
+      dateStart: trip.metadata?.dateStart || trip.days?.[0]?.date || "",
+      dateEnd: trip.metadata?.dateEnd || trip.days?.[trip.days.length - 1]?.date || "",
+      mapProvider: trip.metadata?.mapProvider || "google",
+      status: "imported",
+      lastUpdated: new Date().toISOString().slice(0, 10),
+    },
+    trip,
+    reviewNeeded,
+    localData: payload.localData || null,
+    importedAt: payload.importedAt || new Date().toISOString(),
+  };
+}
+
+
+function normalizeImportedTransportCard(card = null, event = {}) {
+  if (!card) return null;
+  const segment = Array.isArray(card.segments) && card.segments.length ? card.segments[0] : {};
+  const modeMap = { flight: "flight", train: "train", bus: "bus", ferry: "boat", boat: "boat", other: "other" };
+  const mode = card.mode || modeMap[card.kind] || "other";
+  const service = card.service || segment.service || segment.traveler || "";
+  return {
+    mode,
+    title: card.title || event.what || "Transport",
+    route: card.route || segment.detail || "",
+    service,
+    terminalNote: card.terminalNote || "",
+    segments: [{
+      traveler: segment.traveler || service,
+      departure: segment.departure || segment.departureTime || event.timeStart || "",
+      arrival: segment.arrival || segment.arrivalTime || event.timeEnd || "",
+      detail: segment.detail || card.note || "",
+      fromTerminal: segment.fromTerminal || "",
+      toTerminal: segment.toTerminal || "",
+    }],
+  };
+}
+
+function normalizeImportedEvent(event) {
+  const category = event.category || event.categories?.[0] || "";
+  const categories = Array.isArray(event.categories) ? event.categories : [category].filter(Boolean);
+  const notes = event.notes ?? event.note ?? "";
+  const start = event.time?.start || event.timeStart || "";
+  const end = event.time?.end || event.timeEnd || "";
+  const original = event.time?.original || event.timeText || combineTime(start, end);
+  return {
+    ...event,
+    time: { original, start, end, isRange: Boolean(start && end) },
+    notes,
+    categories,
+    accommodation: event.accommodation || (category === "hotel" ? { name: event.place || event.what || "", address: event.address || "" } : null),
+    transportationOriginal: event.transportationOriginal || (category === "transport" ? event.what || "" : ""),
+    transportCard: normalizeImportedTransportCard(event.transportCard, event),
+    importance: event.importance || { level: event.important ? "high" : "normal", explicitRedCells: [], keywordHits: [] },
+    alternative: event.alternative || { isConditional: category === "alternative", keywordHits: [], sourceText: "" },
+    urls: event.urls || [],
+    urlLabel: event.urlLabel || "",
+    mapTargets: event.mapTargets || [],
+    references: event.references || [],
+    source: event.source || { workbook: "travel package", sheet: "", row: 0, raw: { F: notes }, rawXml: {} },
+  };
+}
+
+function packageToItinerary(travelPackage) {
+  const itinerary = structuredClone(travelPackage.trip);
+  itinerary.events = (itinerary.events || []).map(normalizeImportedEvent);
+  itinerary.metadata = {
+    ...(itinerary.metadata || {}),
+    tripId: travelPackage.tripId,
+    tripTitle: travelPackage.tripMeta?.title || travelPackage.tripId,
+    mapProvider: travelPackage.tripMeta?.mapProvider || itinerary.metadata?.mapProvider || "google",
+    reviewNeeded: travelPackage.reviewNeeded || { tripId: travelPackage.tripId, items: [] },
+  };
+  return itinerary;
+}
+
+function makeTravelFileName(itinerary) {
+  const firstDay = itinerary?.days?.[0] || {};
+  const start = String(itinerary?.metadata?.dateStart || firstDay.date || "").replaceAll("-", "").slice(2);
+  return `travel_${start || "trip"}.travel.json`;
+}
+
+async function saveTravelPackage(travelPackage) {
+  await putInStore("travelPackages", travelPackage);
+  await putInStore("meta", { key: "currentTripId", tripId: travelPackage.tripId, value: travelPackage.tripId });
+  state.tripId = travelPackage.tripId;
+  state.travelPackage = travelPackage;
+}
+
+async function loadTravelPackages() {
+  return (await getAllFromStore("travelPackages")).sort((first, second) => {
+    const firstTitle = first.tripMeta?.title || first.tripId;
+    const secondTitle = second.tripMeta?.title || second.tripId;
+    return firstTitle.localeCompare(secondTitle, "zh-CN");
+  });
+}
+
+async function loadCurrentTravelPackage() {
+  const packages = await loadTravelPackages();
+  if (!packages.length) return null;
+  const metaRows = await getAllFromStore("meta");
+  const currentTripId = metaRows.find((row) => row.key === "currentTripId")?.value || packages[0].tripId;
+  return packages.find((item) => item.tripId === currentTripId) || packages[0];
+}
+
+
+function tripPackageTitle(item) {
+  return item?.tripMeta?.title || item?.trip?.metadata?.tripTitle || item?.tripId || "未命名旅途";
+}
+
+function tripDateRange(item) {
+  const start = item?.tripMeta?.dateStart || item?.trip?.metadata?.dateStart || item?.trip?.days?.[0]?.date || "";
+  const end = item?.tripMeta?.dateEnd || item?.trip?.metadata?.dateEnd || item?.trip?.days?.[item.trip.days.length - 1]?.date || "";
+  const count = item?.trip?.days?.length || item?.tripMeta?.dayCount || "";
+  const clean = (value, includeYear = true) => {
+    const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return value || "";
+    return includeYear ? `${match[1]}/${Number(match[2])}/${Number(match[3])}` : `${Number(match[2])}/${Number(match[3])}`;
+  };
+  const range = start && end ? `${clean(start)}–${clean(end, false)}` : clean(start || end);
+  return [range, count ? `${count} 天` : ""].filter(Boolean).join(" · ");
+}
+
+function openTripManager() {
+  renderTripMenu().then(() => elements.tripManagerDialog?.showModal());
+}
+
+function closeTripManager() {
+  elements.tripManagerDialog?.close();
+}
+
+function createTripRow(item, current = false) {
+  const row = createElement("div", `trip-manager-row${current ? " trip-manager-row--current" : ""}`);
+  const main = createElement(current ? "div" : "button", "trip-manager-row__main");
+  if (!current) {
+    main.type = "button";
+    main.addEventListener("click", () => switchTravelPackage(item.tripId));
+  }
+  const status = createElement("span", "trip-manager-row__status");
+  if (current) {
+    status.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.3 6.7 11.4 12.8 4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+  main.append(status);
+  const text = createElement("span", "trip-manager-row__text");
+  const titleLine = createElement("span", "trip-manager-row__title-line");
+  titleLine.append(createElement("strong", "", tripPackageTitle(item)));
+  if (current) titleLine.append(createElement("em", "", "当前使用中"));
+  text.append(titleLine);
+  text.append(createElement("small", "", tripDateRange(item)));
+  main.append(text);
+  row.append(main);
+  const actions = createElement("div", "trip-manager-row__actions");
+  const rename = createElement("button", "trip-manager-mini", "重命名");
+  rename.type = "button";
+  rename.addEventListener("click", (event) => {
+    event.stopPropagation();
+    renameTravelPackage(item.tripId);
+  });
+  const remove = createElement("button", "trip-manager-mini trip-manager-mini--danger", "删除");
+  remove.type = "button";
+  remove.addEventListener("click", (event) => {
+    event.stopPropagation();
+    deleteTravelPackage(item.tripId);
+  });
+  actions.append(rename, remove);
+  row.append(actions);
+  return row;
+}
+
+async function renameTravelPackage(tripId) {
+  const item = await getFromStore("travelPackages", tripId);
+  if (!item) return;
+  const nextTitle = window.prompt("给这段旅途换个名字", tripPackageTitle(item));
+  if (!nextTitle || !nextTitle.trim()) return;
+  item.tripMeta = { ...(item.tripMeta || {}), title: nextTitle.trim(), lastUpdated: new Date().toISOString().slice(0, 10) };
+  await putInStore("travelPackages", item);
+  if (state.tripId === tripId) state.travelPackage = item;
+  await renderTripMenu();
+}
+
+async function deleteRowsForTrip(tripId) {
+  const stores = [
+    ["overlays", "eventId"], ["customEvents", "id"], ["dayNotes", "date"], ["changelog", "id"],
+    ["checklistCompletions", "id"], ["dayDeletions", "id"], ["extraDays", "date"], ["dayTitles", "date"], ["meta", "key"],
+  ];
+  for (const [store, key] of stores) {
+    const rows = await getAllFromStore(store);
+    await Promise.all(rows
+      .filter((row) => row?.tripId === tripId || (store === "meta" && row?.key === "currentTripId" && row?.value === tripId))
+      .map((row) => deleteFromStore(store, row[key])));
+  }
+}
+
+async function deleteTravelPackage(tripId) {
+  const item = await getFromStore("travelPackages", tripId);
+  if (!item) return;
+  const ok = window.confirm(`删除“${tripPackageTitle(item)}”？\n\n只会删除这台设备里的旅行包和本机修改，不会影响你手里的 .travel.json 文件。`);
+  if (!ok) return;
+  await deleteFromStore("travelPackages", tripId);
+  await deleteRowsForTrip(tripId);
+  const packages = await loadTravelPackages();
+  if (packages.length) {
+    const next = packages[0];
+    await putInStore("meta", { key: "currentTripId", tripId: next.tripId, value: next.tripId });
+  }
+  window.location.reload();
+}
+
+async function importSamplePackage() {
+  const ok = window.confirm("导入内置示例旅程？\n\n示例只保存到这台设备，之后可以删除。");
+  if (!ok) return;
+  const response = await fetch("sample/paris_260806.travel.json");
+  if (!response.ok) throw new Error("示例旅程读取失败");
+  const payload = await response.json();
+  const travelPackage = normalizeTravelPackage(payload);
+  await saveTravelPackage(travelPackage);
+  window.location.reload();
+}
+
+async function renderTripMenu() {
+  if (!state.database) return;
+  const packages = await loadTravelPackages();
+  const current = packages.find((item) => item.tripId === state.tripId) || null;
+  if (elements.tripManagerTrigger) {
+    elements.tripManagerTrigger.hidden = !current;
+    if (current) {
+      elements.tripManagerTitle.textContent = tripPackageTitle(current);
+      elements.tripManagerMeta.textContent = tripDateRange(current);
+    }
+  }
+  if (!elements.tripManagerContent) return;
+  elements.tripManagerContent.replaceChildren();
+  if (current) {
+    const section = createElement("section", "trip-manager-section");
+    section.append(createTripRow(current, true));
+    elements.tripManagerContent.append(section);
+  }
+  const others = packages.filter((item) => item.tripId !== state.tripId);
+  if (others.length) {
+    const section = createElement("section", "trip-manager-section");
+    others.forEach((item) => section.append(createTripRow(item, false)));
+    elements.tripManagerContent.append(section);
+  }
+  if (!packages.length) {
+    const empty = createElement("section", "trip-manager-empty");
+    empty.append(createElement("h3", "", "把旅行带上路"));
+    empty.append(createElement("p", "", "导入旅行包后，可离线查看、编辑和导航。数据只保存在这台设备。"));
+    const importButton = createElement("button", "primary-button", "导入旅行包");
+    importButton.type = "button";
+    importButton.addEventListener("click", () => elements.tripImportInput?.click());
+    const sampleButton = createElement("button", "secondary-button", "查看示例旅程");
+    sampleButton.type = "button";
+    sampleButton.addEventListener("click", async () => {
+      try { await importSamplePackage(); }
+      catch (error) { window.alert(error.message || "示例旅程导入失败"); }
+    });
+    empty.append(importButton, sampleButton);
+    elements.tripManagerContent.append(empty);
+  }
+}
+
+async function switchTravelPackage(tripId) {
+  if (!tripId || tripId === state.tripId) return;
+  const travelPackage = await getFromStore("travelPackages", tripId);
+  if (!travelPackage) return;
+  await putInStore("meta", { key: "currentTripId", tripId, value: tripId });
+  closeTripManager();
+  window.location.reload();
+}
+
+async function importTravelPackageFile(file) {
+  const payload = await readBackupFile(file);
+  const travelPackage = normalizeTravelPackage(payload);
+  if (state.tripId && travelPackage.tripId !== state.tripId) {
+    const ok = window.confirm(`导入并切换到“${travelPackage.tripMeta?.title || travelPackage.tripId}”？\n\n当前旅途仍保存在本机，不会上传任何数据。`);
+    if (!ok) return;
+  }
+  await saveTravelPackage(travelPackage);
+  if (travelPackage.localData) {
+    await importLocalRows(travelPackage.localData);
+  }
+  window.alert("旅途已导入，页面将刷新。");
+  window.location.reload();
 }
 
 async function replaceStoreRows(storeName, keyName, rows, filterFn = belongsToCurrentTrip) {
@@ -293,27 +609,32 @@ async function localRowsForBackup() {
 }
 
 async function exportLocalBackup() {
+  if (!state.rawItinerary || !state.tripId) throw new Error("尚未导入旅途");
   const exportedAt = new Date().toISOString();
   const localData = await localRowsForBackup();
-  const backup = {
-    kind: "travel-pwa-local-backup",
+  const travelPackage = {
+    kind: "travel-plan-package",
     version: 1,
     tripId: state.tripId,
+    fileName: state.travelPackage?.fileName || makeTravelFileName(state.rawItinerary),
     exportedAt,
-    itinerary: {
-      dateStart: state.itinerary?.metadata?.dateStart || state.itinerary?.days?.[0]?.date || "",
-      dateEnd: state.itinerary?.metadata?.dateEnd || state.itinerary?.days?.[state.itinerary.days.length - 1]?.date || "",
-      dayCount: state.itinerary?.metadata?.dayCount || state.itinerary?.days?.length || 0,
-      recordCount: state.itinerary?.metadata?.recordCount || state.itinerary?.events?.length || 0,
+    tripMeta: state.travelPackage?.tripMeta || {
+      id: state.tripId,
+      title: state.rawItinerary.metadata?.tripTitle || state.tripId,
+      dateStart: state.rawItinerary.metadata?.dateStart || state.rawItinerary.days?.[0]?.date || "",
+      dateEnd: state.rawItinerary.metadata?.dateEnd || state.rawItinerary.days?.[state.rawItinerary.days.length - 1]?.date || "",
+      status: "exported",
+      lastUpdated: exportedAt.slice(0, 10),
     },
+    trip: state.rawItinerary,
+    reviewNeeded: { tripId: state.tripId, items: state.checklistItems || [] },
     localData,
   };
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(travelPackage, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
-  const filenameDate = exportedAt.slice(0, 10);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${state.tripId}-backup-${filenameDate}.json`;
+  link.download = travelPackage.fileName || `${state.tripId}.travel.json`;
   document.body.append(link);
   link.click();
   link.remove();
@@ -337,17 +658,7 @@ function readBackupFile(file) {
   });
 }
 
-async function importLocalBackup(file) {
-  const backup = await readBackupFile(file);
-  if (backup?.kind !== "travel-pwa-local-backup" || backup?.version !== 1) {
-    throw new Error("这不是本 PWA 导出的备份文件");
-  }
-  if (backup.tripId !== state.tripId) {
-    throw new Error(`备份属于 ${backup.tripId || "未知旅行"}，当前旅行是 ${state.tripId}`);
-  }
-  const confirmed = window.confirm("导入备份会替换当前手机上的本地修改、临时事项和自由备注。\n\n原始行程不会被修改。确定继续吗？");
-  if (!confirmed) return;
-  const localData = backup.localData || {};
+async function importLocalRows(localData) {
   const withTripId = (row) => ({ ...row, tripId: row.tripId || state.tripId });
   await replaceStoreRows("overlays", "eventId", (localData.overlays || []).map(withTripId));
   await replaceStoreRows("customEvents", "id", (localData.customEvents || []).map(withTripId));
@@ -359,10 +670,10 @@ async function importLocalBackup(file) {
   await replaceStoreRows("dayTitles", "date", (localData.dayTitles || []).map(withTripId));
   const metaRows = (localData.meta || []).map(withTripId);
   await replaceStoreRows("meta", "key", metaRows, metaBelongsToCurrentTrip);
-  const importedAt = new Date().toISOString();
-  await putInStore("meta", { key: `lastImportedAt:${state.tripId}`, tripId: state.tripId, value: importedAt });
-  window.alert("备份已导入，页面将刷新。");
-  window.location.reload();
+}
+
+async function importLocalBackup(file) {
+  await importTravelPackageFile(file);
 }
 
 async function resetLocalDeviceData() {
@@ -412,7 +723,7 @@ async function renderBackupPanel() {
   const actions = createElement("div", "backup-card__actions");
   const exportButton = createElement("button", "backup-button");
   exportButton.type = "button";
-  exportButton.disabled = !state.database;
+  exportButton.disabled = !state.database || !state.rawItinerary;
   exportButton.append(createElement("span", "backup-button__icon", "↥"));
   exportButton.append(createElement("span", "", "导出"));
   exportButton.addEventListener("click", async () => {
@@ -970,28 +1281,27 @@ function normalizeChecklistItems(payload) {
     });
 }
 
-async function loadChecklistItems(reviewPath) {
-  if (!reviewPath) return [];
-  try {
-    const response = await fetch(reviewPath, { cache: "no-store" });
-    if (!response.ok) return [];
-    const payload = await response.json();
-    if (payload.tripId && payload.tripId !== state.tripId) return [];
-    return normalizeChecklistItems(payload);
-  } catch (error) {
-    console.warn("待办清单读取失败", error);
-    return [];
-  }
+async function loadChecklistItems(reviewPayload) {
+  if (!reviewPayload) return [];
+  if (reviewPayload.tripId && reviewPayload.tripId !== state.tripId) return [];
+  return normalizeChecklistItems(reviewPayload);
+}
+
+function checklistRow(itemId) {
+  return state.checklistCompletions.get(itemId) || {};
+}
+
+function effectiveChecklistItem(item) {
+  return { ...item, ...(checklistRow(item.id).edits || {}) };
 }
 
 function isChecklistDone(itemId) {
-  return Boolean(state.checklistCompletions.get(itemId)?.completed);
+  const row = checklistRow(itemId);
+  return Boolean(row.completed) && !row.deleted;
 }
 
-function triggerHapticFeedback() {
-  // Web/iOS Safari does not expose reliable light haptic feedback.
-  // Keep this silent on the web. If this PWA is later wrapped by a native shell
-  // such as Capacitor, connect native light-impact feedback here.
+function isChecklistDeleted(itemId) {
+  return Boolean(checklistRow(itemId).deleted);
 }
 
 function checklistDueText(item) {
@@ -1000,209 +1310,206 @@ function checklistDueText(item) {
   return `截止 ${shortDate(item.dueDate)}`;
 }
 
-async function setChecklistDone(itemId, completed) {
+function checklistPriorityRank(item) {
+  return item.priority === "high" || item.priority === "urgent" ? 0 : 1;
+}
+
+function sortOpenChecklist(first, second) {
+  const firstDue = first.dueDate || "9999-12-31";
+  const secondDue = second.dueDate || "9999-12-31";
+  if (firstDue !== secondDue) return firstDue.localeCompare(secondDue);
+  const priority = checklistPriorityRank(first) - checklistPriorityRank(second);
+  if (priority) return priority;
+  return first.title.localeCompare(second.title, "zh-CN");
+}
+
+function sortCompletedChecklist(first, second) {
+  const firstAt = checklistRow(first.id).completedAt || "";
+  const secondAt = checklistRow(second.id).completedAt || "";
+  return secondAt.localeCompare(firstAt);
+}
+
+async function saveChecklistState(itemId, changes) {
   const row = {
+    ...checklistRow(itemId),
     id: itemId,
     tripId: state.tripId,
-    completed: Boolean(completed),
-    completedAt: completed ? new Date().toISOString() : "",
+    ...changes,
   };
   state.checklistCompletions.set(itemId, row);
   await putInStore("checklistCompletions", row);
   await markLocalSave(new Date().toISOString());
+}
+
+async function setChecklistDone(itemId, completed) {
+  await saveChecklistState(itemId, {
+    completed: Boolean(completed),
+    completedAt: completed ? new Date().toISOString() : "",
+    deleted: false,
+    deletedAt: "",
+  });
   renderChecklistPanel();
 }
 
-function showChecklistToast(item, previousCompleted, message = "已完成") {
+function showChecklistDeleteToast(item, previousRow) {
   document.querySelector(".checklist-toast")?.remove();
   window.clearTimeout(state.checklistUndoTimer);
   const toast = createElement("div", "checklist-toast");
-  toast.append(createElement("span", "", message));
+  toast.append(createElement("span", "", "已删除待办"));
   const undo = createElement("button", "", "撤销");
   undo.type = "button";
   undo.addEventListener("click", async () => {
     window.clearTimeout(state.checklistUndoTimer);
     toast.remove();
-    await setChecklistDone(item.id, previousCompleted);
+    if (previousRow && Object.keys(previousRow).length) {
+      state.checklistCompletions.set(item.id, previousRow);
+      await putInStore("checklistCompletions", previousRow);
+    } else {
+      await saveChecklistState(item.id, { deleted: false, deletedAt: "" });
+    }
+    await markLocalSave(new Date().toISOString());
+    renderChecklistPanel();
   });
   toast.append(undo);
   document.body.append(toast);
-  state.checklistUndoTimer = window.setTimeout(() => toast.remove(), 3000);
+  state.checklistUndoTimer = window.setTimeout(() => toast.remove(), 5000);
 }
 
-function jumpToChecklistTarget(item) {
-  if (!item.relatedDate) return;
-  const index = state.itinerary.days.findIndex((day) => day.date === item.relatedDate);
-  if (index < 0) return;
-  state.selectedIndex = index;
-  setViewMode("all");
-  window.setTimeout(() => {
-    const target = item.relatedItemId
-      ? Array.from(document.querySelectorAll("[data-event-id]")).find((node) => node.dataset.eventId === item.relatedItemId)
-      : null;
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
-      target.classList.add("event-card--target");
-      window.setTimeout(() => target.classList.remove("event-card--target"), 1400);
-    }
-  }, 120);
+async function deleteChecklistItem(item) {
+  const previousRow = { ...checklistRow(item.id) };
+  await saveChecklistState(item.id, { deleted: true, deletedAt: new Date().toISOString() });
+  renderChecklistPanel();
+  showChecklistDeleteToast(item, previousRow);
 }
 
-function createChecklistActionIcon(completed) {
-  const icon = createElement("span", "checklist-complete-icon");
-  icon.setAttribute("aria-hidden", "true");
-  icon.innerHTML = completed
-    ? '<svg viewBox="0 0 24 24"><path d="M9 7H5v4"/><path d="M5 7c2.2-2.2 5.7-3 8.7-1.7 3.7 1.6 5.4 5.9 3.8 9.6s-5.9 5.4-9.6 3.8"/></svg>'
-    : '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7"/></svg>';
+function checklistMetaText(item) {
+  const parts = [checklistDueText(item)];
+  if (item.relatedDate) parts.push(`关联 ${shortDate(item.relatedDate)}`);
+  return parts.join(" · ");
+}
+
+function checklistCheckIcon() {
+  const icon = createElement("span", "checklist-check-icon");
+  icon.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.4 8.3 6.6 11.2 12.5 4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   return icon;
 }
 
 function createChecklistItem(item, completed) {
   const row = createElement("div", `checklist-item${completed ? " checklist-item--done" : ""}`);
-  const completeBg = createElement("div", "checklist-complete-bg");
-  completeBg.append(createChecklistActionIcon(completed));
-  row.append(completeBg);
+  row.addEventListener("click", () => openChecklistEditDialog(item));
+  const checkbox = createElement("button", "checklist-checkbox");
+  checkbox.type = "button";
+  checkbox.setAttribute("aria-label", completed ? "恢复待办" : "完成待办");
+  if (completed) checkbox.append(checklistCheckIcon());
+  checkbox.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    await setChecklistDone(item.id, !completed);
+  });
 
-  const surface = createElement("div", "checklist-surface");
   const body = createElement("button", "checklist-body");
   body.type = "button";
-  body.addEventListener("click", () => {
-    if (row.dataset.dragged === "true") return;
-    jumpToChecklistTarget(item);
-  });
   body.append(createElement("span", "checklist-title", item.title));
-  const meta = createElement("span", "checklist-meta");
-  const metaParts = [checklistDueText(item)];
-  if (item.relatedDate) metaParts.push(`关联 ${shortDate(item.relatedDate)}`);
-  meta.textContent = metaParts.join(" · ");
-  body.append(meta);
+  body.append(createElement("span", "checklist-meta", checklistMetaText(item)));
   if (item.note && !completed) body.append(createElement("span", "checklist-note", item.note));
-  surface.append(body);
 
-  if (item.url && !completed) {
-    const link = createElement("a", "checklist-link", item.urlLabel);
-    link.href = item.url;
-    link.target = "_blank";
-    link.rel = "noopener";
-    surface.append(link);
-  }
-  row.append(surface);
+  const remove = createElement("button", "checklist-delete", "×");
+  remove.type = "button";
+  remove.setAttribute("aria-label", "删除待办");
+  remove.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    await deleteChecklistItem(item);
+  });
 
-  attachChecklistSwipe(row, surface, item, completed);
+  row.append(checkbox, body, remove);
   return row;
 }
 
-function attachChecklistSwipe(row, surface, item, completed = false) {
-  let startX = 0;
-  let startY = 0;
-  let currentX = 0;
-  let width = 1;
-  let dragging = false;
-  let thresholdReached = false;
-  let hapticTriggered = false;
-  let frame = 0;
+function ensureChecklistEditDialog() {
+  let dialog = document.querySelector("#checklist-edit-dialog");
+  if (dialog) return dialog;
+  dialog = createElement("dialog", "edit-dialog checklist-edit-dialog");
+  dialog.id = "checklist-edit-dialog";
+  document.body.append(dialog);
+  return dialog;
+}
 
-  const applyProgress = () => {
-    frame = 0;
-    const distance = Math.max(0, currentX);
-    const progress = Math.min(1, distance / (width * 0.4));
-    row.style.setProperty("--swipe-x", `${distance}px`);
-    row.style.setProperty("--swipe-progress", String(progress));
-    surface.style.transform = `translate3d(${distance}px,0,0)`;
-  };
-  const schedule = () => {
-    if (!frame) frame = window.requestAnimationFrame(applyProgress);
-  };
-  const reset = () => {
-    row.classList.add("checklist-item--returning");
-    row.classList.remove("checklist-item--threshold");
-    row.style.setProperty("--swipe-x", "0px");
-    row.style.setProperty("--swipe-progress", "0");
-    surface.style.transform = "translate3d(0,0,0)";
-    window.setTimeout(() => row.classList.remove("checklist-item--returning"), 260);
-  };
-  const commitSwipe = async () => {
-    const nextCompleted = !completed;
-    row.classList.add("checklist-item--complete");
-    surface.style.transform = `translate3d(${Math.max(width, currentX)}px,0,0) scale(.985)`;
-    window.setTimeout(async () => {
-      try {
-        await setChecklistDone(item.id, nextCompleted);
-        showChecklistToast(item, completed, nextCompleted ? "已完成" : "已恢复");
-      } catch (error) {
-        console.error(error);
-        window.alert("待办状态保存失败，请稍后再试。");
-      }
-    }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 40 : 170);
-  };
+function openChecklistEditDialog(item) {
+  const dialog = ensureChecklistEditDialog();
+  dialog.replaceChildren();
+  const form = createElement("form", "edit-form checklist-edit-form");
+  form.method = "dialog";
+  const heading = createElement("div", "edit-form__heading");
+  const title = createElement("div");
+  title.append(createElement("p", "eyebrow", "LOCAL TODO"));
+  title.append(createElement("h2", "", "编辑待办"));
+  const close = createElement("button", "dialog-close", "×");
+  close.type = "button";
+  close.addEventListener("click", () => dialog.close());
+  heading.append(title, close);
 
-  row.addEventListener("pointerdown", (event) => {
-    if (event.button !== undefined && event.button !== 0) return;
-    if (event.target.closest("a")) return;
-    startX = event.clientX;
-    startY = event.clientY;
-    currentX = 0;
-    width = Math.max(1, row.getBoundingClientRect().width);
-    dragging = false;
-    thresholdReached = false;
-    hapticTriggered = false;
-    row.dataset.dragged = "false";
-    row.classList.remove("checklist-item--returning", "checklist-item--complete");
-    row.setPointerCapture?.(event.pointerId);
+  const titleField = createChecklistField("标题", "text", item.title);
+  const dueField = createChecklistField("截止日期", "date", item.dueDate);
+  const priorityField = createElement("label", "form-field");
+  priorityField.append(createElement("span", "", "优先级"));
+  const priority = createElement("select");
+  priority.innerHTML = '<option value="normal">普通</option><option value="high">高</option>';
+  priority.value = item.priority === "high" || item.priority === "urgent" ? "high" : "normal";
+  priorityField.append(priority);
+  const relatedField = createChecklistField("关联日期", "date", item.relatedDate);
+  const noteField = createElement("label", "form-field form-field--wide");
+  noteField.append(createElement("span", "", "补充说明"));
+  const note = createElement("textarea");
+  note.rows = 4;
+  note.value = item.note || "";
+  noteField.append(note);
+  const actions = createElement("div", "edit-form__actions form-field--wide");
+  const cancel = createElement("button", "secondary-button", "不保存");
+  cancel.type = "button";
+  cancel.addEventListener("click", () => dialog.close());
+  const save = createElement("button", "primary-button", "保存到本机");
+  save.type = "submit";
+  actions.append(cancel, save);
+
+  form.append(heading, titleField.field, dueField.field, priorityField, relatedField.field, noteField, actions);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await saveChecklistState(item.id, {
+      edits: {
+        title: titleField.input.value.trim() || item.title,
+        dueDate: dueField.input.value,
+        dueLabel: "",
+        priority: priority.value,
+        relatedDate: relatedField.input.value,
+        note: note.value.trim(),
+      },
+    });
+    dialog.close();
+    renderChecklistPanel();
   });
+  dialog.append(form);
+  dialog.showModal();
+}
 
-  row.addEventListener("pointermove", (event) => {
-    if (startX === 0) return;
-    const dx = event.clientX - startX;
-    const dy = event.clientY - startY;
-    if (!dragging && Math.abs(dx) < 8) return;
-    if (!dragging && Math.abs(dy) > Math.abs(dx)) return;
-    dragging = true;
-    row.dataset.dragged = "true";
-    currentX = Math.max(0, dx);
-    const overThreshold = currentX >= width * 0.4;
-    if (overThreshold && !thresholdReached) {
-      thresholdReached = true;
-      row.classList.add("checklist-item--threshold");
-      if (!hapticTriggered) {
-        hapticTriggered = true;
-        triggerHapticFeedback();
-      }
-    } else if (!overThreshold && thresholdReached) {
-      thresholdReached = false;
-      row.classList.remove("checklist-item--threshold");
-    }
-    schedule();
-  });
-
-  const endDrag = () => {
-    if (startX === 0) return;
-    const shouldComplete = dragging && currentX >= width * 0.4;
-    startX = 0;
-    startY = 0;
-    if (frame) {
-      window.cancelAnimationFrame(frame);
-      frame = 0;
-    }
-    if (shouldComplete) commitSwipe();
-    else reset();
-    window.setTimeout(() => { row.dataset.dragged = "false"; }, 80);
-  };
-  row.addEventListener("pointerup", endDrag);
-  row.addEventListener("pointercancel", endDrag);
-  row.addEventListener("lostpointercapture", endDrag);
+function createChecklistField(label, type, value) {
+  const field = createElement("label", "form-field");
+  field.append(createElement("span", "", label));
+  const input = createElement("input");
+  input.type = type;
+  input.value = value || "";
+  field.append(input);
+  return { field, input };
 }
 
 function renderChecklistPanel() {
   if (!elements.checklistPanel) return;
-  const items = state.checklistItems || [];
+  const items = (state.checklistItems || []).map(effectiveChecklistItem).filter((item) => !isChecklistDeleted(item.id));
   const wasOpen = Boolean(elements.checklistPanel.querySelector(".checklist-panel")?.open);
   const doneWasOpen = Boolean(elements.checklistPanel.querySelector(".checklist-done")?.open);
   elements.checklistPanel.replaceChildren();
   if (!items.length) return;
 
-  const pending = items.filter((item) => !isChecklistDone(item.id));
-  const completed = items.filter((item) => isChecklistDone(item.id));
+  const pending = items.filter((item) => !isChecklistDone(item.id)).sort(sortOpenChecklist);
+  const completed = items.filter((item) => isChecklistDone(item.id)).sort(sortCompletedChecklist);
   const details = createElement("details", "checklist-panel");
   details.open = wasOpen;
 
@@ -1221,7 +1528,7 @@ function renderChecklistPanel() {
   if (completed.length) {
     const doneDetails = createElement("details", "checklist-done");
     doneDetails.open = doneWasOpen;
-    const doneSummary = createElement("summary", "checklist-done__summary", `已完成 ${completed.length} 项`);
+    const doneSummary = createElement("summary", "checklist-done__summary", `已完成（${completed.length}）`);
     doneDetails.append(doneSummary);
     const doneList = createElement("div", "checklist-list checklist-list--done");
     completed.forEach((item) => doneList.append(createChecklistItem(item, true)));
@@ -1977,10 +2284,10 @@ function briefText(event, mode) {
     return `${time}${event.transportationOriginal}`;
   }
   if (mode === "important") {
-    const redCells = event.importance.explicitRedCells;
-    if (redCells.includes("F") && event.source.raw.F) return event.source.raw.F;
+    const redCells = event.importance?.explicitRedCells || [];
+    if (redCells.includes("F") && event.source?.raw?.F) return event.source.raw.F;
     if (redCells.includes("D")) return eventSummary(event);
-    const note = event.source.raw.F || "";
+    const note = event.source?.raw?.F || "";
     if (/防盗|只接受现金|小票|检查时刻表/.test(note)) return note;
   }
   return eventSummary(event);
@@ -2054,7 +2361,24 @@ function renderTags(event) {
   return tags;
 }
 
-function mapUrls(target) {
+function mapProviderForTarget(target) {
+  const provider = target.provider || state.itinerary?.metadata?.mapProvider || "google";
+  return provider === "amap" ? "amap" : "google";
+}
+
+function amapQueryForTarget(target) {
+  return target.query || target.destination || target.label || "";
+}
+
+function mapUrls(target, provider = mapProviderForTarget(target)) {
+  if (provider === "amap") {
+    const query = amapQueryForTarget(target);
+    const encoded = encodeURIComponent(query);
+    return {
+      scheme: `iosamap://poi?sourceApplication=TravelPlan&name=${encoded}&dev=0`,
+      web: `https://uri.amap.com/search?keyword=${encoded}&src=TravelPlan&callnative=1`,
+    };
+  }
   if (target.kind === "directions") {
     const parameters = new URLSearchParams({
       api: "1",
@@ -2079,9 +2403,10 @@ function mapUrls(target) {
 }
 
 function createMapActions(target) {
-  const urls = mapUrls(target);
+  const provider = mapProviderForTarget(target);
+  const urls = mapUrls(target, provider);
   const actions = createElement("div", "map-actions");
-  const label = target.kind === "directions" ? "打开整条路线" : "在 Google Maps 打开";
+  const label = provider === "amap" ? "在高德地图打开" : "在 Google Maps 打开";
   const primary = createElement("a", "map-button", label);
   primary.href = urls.web;
   primary.target = "_blank";
@@ -2090,7 +2415,7 @@ function createMapActions(target) {
   primary.dataset.web = urls.web;
   primary.addEventListener("click", (event) => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (!isIOS || target.existingGoogleMapsUrl || target.kind === "directions") return;
+    if (!isIOS || target.existingGoogleMapsUrl || (provider === "google" && target.kind === "directions")) return;
     event.preventDefault();
     window.location.href = urls.scheme;
     window.setTimeout(() => {
@@ -2167,7 +2492,7 @@ function renderEvent(event, executionState = null) {
   }
   const card = createElement(
     "article",
-    `event-card event-card--${event.importance.level}${executionClass ? ` event-card--${executionClass}` : ""}`
+    `event-card event-card--${event.importance?.level || "normal"}${executionClass ? ` event-card--${executionClass}` : ""}`
   );
   card.dataset.eventId = event.id;
   const header = createElement("div", "event-card__header");
@@ -2263,7 +2588,7 @@ async function initialize(itinerary) {
   }
   state.tripId = itinerary.metadata?.tripId || state.tripId || DEFAULT_TRIP_ID;
   state.rawItinerary = itinerary;
-  state.database = await openDatabase();
+  state.database = state.database || await openDatabase();
   const [overlayRows, customRows, noteRows, metaRows, checklistRows, dayDeletionRows, extraDayRows, dayTitleRows, checklistItems] = await Promise.all([
     getAllFromStore("overlays"),
     getAllFromStore("customEvents"),
@@ -2273,7 +2598,7 @@ async function initialize(itinerary) {
     getAllFromStore("dayDeletions"),
     getAllFromStore("extraDays"),
     getAllFromStore("dayTitles"),
-    loadChecklistItems(itinerary.metadata?.reviewPath),
+    loadChecklistItems(itinerary.metadata?.reviewNeeded),
   ]);
   state.overlays = new Map(overlayRows.filter(belongsToCurrentTrip).map((row) => [row.eventId, row]));
   state.customEvents = new Map(customRows.filter(belongsToCurrentTrip).map((row) => [row.id, row]));
@@ -2344,7 +2669,73 @@ async function initialize(itinerary) {
     event.preventDefault();
     closeDayTitleDialog();
   });
-  elements.backupFileInput.addEventListener("change", async () => {
+  elements.app.hidden = false;
+  await renderTripMenu();
+  setViewMode("today");
+}
+
+async function loadItinerary() {
+  const travelPackage = await loadCurrentTravelPackage();
+  if (!travelPackage) return null;
+  state.travelPackage = travelPackage;
+  state.tripId = travelPackage.tripId;
+  return packageToItinerary(travelPackage);
+}
+
+async function renderEmptyState() {
+  state.tripId = "";
+  elements.tripSummary.textContent = "尚未导入旅途";
+  elements.localSaveStatus.textContent = "数据只保存在这台设备";
+  elements.app.hidden = false;
+  elements.fullView.hidden = true;
+  elements.todayView.hidden = false;
+  elements.showToday.setAttribute("aria-pressed", "true");
+  elements.showAll.setAttribute("aria-pressed", "false");
+  elements.showAll.disabled = true;
+  elements.checklistPanel.replaceChildren();
+  elements.todayPanels.replaceChildren();
+  const empty = createElement("section", "starter-empty");
+  const actions = createElement("div", "starter-empty__actions");
+  const importButton = createElement("button", "primary-button", "导入旅行包");
+  importButton.type = "button";
+  importButton.addEventListener("click", () => elements.tripImportInput?.click());
+  const sampleButton = createElement("button", "secondary-button", "查看示例旅程");
+  sampleButton.type = "button";
+  sampleButton.addEventListener("click", async () => {
+    try { await importSamplePackage(); }
+    catch (error) { window.alert(error.message || "示例旅程导入失败"); }
+  });
+  actions.append(importButton, sampleButton);
+  empty.append(actions);
+  elements.todayPanels.append(empty);
+  elements.backupPanel.replaceChildren();
+  await renderTripMenu();
+}
+
+async function bindPackageControls() {
+  elements.tripManagerTrigger?.addEventListener("click", openTripManager);
+  elements.closeTripManager?.addEventListener("click", closeTripManager);
+  elements.tripManagerImport?.addEventListener("click", () => elements.tripImportInput?.click());
+  elements.tripManagerDialog?.addEventListener("click", (event) => {
+    if (event.target === elements.tripManagerDialog) closeTripManager();
+  });
+  elements.tripManagerDialog?.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeTripManager();
+  });
+  elements.tripImportInput?.addEventListener("change", async () => {
+    const file = elements.tripImportInput.files?.[0];
+    elements.tripImportInput.value = "";
+    if (!file) return;
+    try {
+      await importTravelPackageFile(file);
+    } catch (error) {
+      console.error(error);
+      window.alert(`导入失败：${error.message || "旅行包格式不正确"}`);
+      await renderTripMenu();
+    }
+  });
+  elements.backupFileInput?.addEventListener("change", async () => {
     const file = elements.backupFileInput.files?.[0];
     elements.backupFileInput.value = "";
     if (!file) return;
@@ -2352,40 +2743,30 @@ async function initialize(itinerary) {
       await importLocalBackup(file);
     } catch (error) {
       console.error(error);
-      window.alert(`导入失败：${error.message || "备份文件无法读取"}`);
+      window.alert(`Import failed: ${error.message || "Invalid travel package"}`);
     }
   });
-  elements.app.hidden = false;
-  setViewMode("today");
 }
 
-async function loadItinerary() {
-  const indexResponse = await fetch("itinerary-index.json", { cache: "no-store" });
-  if (!indexResponse.ok) throw new Error(`无法读取 itinerary-index.json：${indexResponse.status}`);
-  const index = await indexResponse.json();
-  const tripId = index.defaultTripId || DEFAULT_TRIP_ID;
-  const trip = (index.trips || []).find((item) => item.id === tripId) || (index.trips || [])[0];
-  if (!trip?.path) throw new Error("itinerary-index.json 中没有可用旅行");
-  state.tripId = trip.id || tripId;
-  const tripResponse = await fetch(trip.path, { cache: "no-store" });
-  if (!tripResponse.ok) throw new Error(`无法读取 ${trip.path}：${tripResponse.status}`);
-  const itinerary = await tripResponse.json();
-  itinerary.metadata = {
-    ...(itinerary.metadata || {}),
-    tripId: state.tripId,
-    tripTitle: trip.title,
-    reviewPath: trip.reviewPath || "",
-  };
-  return itinerary;
+async function boot() {
+  if (!("indexedDB" in window)) {
+    throw new Error("此浏览器不支持 IndexedDB，无法安全保存旅行包");
+  }
+  state.database = await openDatabase();
+  await bindPackageControls();
+  const itinerary = await loadItinerary();
+  if (!itinerary) {
+    await renderEmptyState();
+    return;
+  }
+  await initialize(itinerary);
 }
 
-loadItinerary()
-  .then(initialize)
-  .catch((error) => {
-    console.error(error);
-    elements.tripSummary.textContent = "行程读取失败";
-    elements.error.hidden = false;
-  });
+boot().catch((error) => {
+  console.error(error);
+  elements.tripSummary.textContent = "Travel Plan 启动失败";
+  elements.error.hidden = false;
+});
 
 if ("serviceWorker" in navigator && window.location.protocol !== "file:") {
   window.addEventListener("load", () => {
