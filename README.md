@@ -85,6 +85,10 @@ TRIP_SCHEMA.md
 10. 不要编造订单号、航班号、酒店地址或预约信息；不确定就写待确认。
 11. 初始旅行包不要写 localData，或写 null。
 12. 不要输出解释，不要输出 Markdown，只输出 JSON 内容。
+13. 禁止把过程稿、修改说明或来源说明写进 JSON 内容字段。
+- 不要出现“把 A 改成 B”“来自 Excel/PDF”“根据公开资料判断”“已删除某某记录”“AI 推断”等句子。
+- 这些内容不得写入 what、note、notes、brief、transportCard.detail、mapTargets.label。
+- 旅行中有用的信息请改写成可执行提醒；纯编辑过程直接丢弃；不确定但需要确认的内容放入 reviewNeeded.items。
 ```
 
 AI 输出后，把内容保存成一个以 `.travel.json` 结尾的文件，例如：
