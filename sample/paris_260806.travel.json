@@ -68,6 +68,16 @@
         "dateOriginal": "2026-08-07",
         "theme": "",
         "route": "巴黎",
+        "routeOverview": {
+          "directionSummary": "先向西穿过杜乐丽花园，再向东前往玛黑区",
+          "travelMode": "walking",
+          "stops": [
+            { "label": "卢浮宫", "query": "Louvre Museum Paris", "lat": 48.8606, "lng": 2.3376, "kind": "sight", "time": "上午" },
+            { "label": "杜乐丽花园", "query": "Tuileries Garden Paris", "lat": 48.8638, "lng": 2.327, "kind": "sight" },
+            { "label": "协和广场", "query": "Place de la Concorde Paris", "lat": 48.8656, "lng": 2.3212, "kind": "stop" },
+            { "label": "玛黑区", "query": "Le Marais Paris", "lat": 48.8566, "lng": 2.3622, "kind": "meal", "time": "晚上" }
+          ]
+        },
         "eventIds": [
           "demo-20260807-01",
           "demo-20260807-02",
@@ -99,6 +109,15 @@
         "dateOriginal": "2026-08-08",
         "theme": "",
         "route": "巴黎",
+        "routeOverview": {
+          "directionSummary": "先向东北到奥赛，再向东南进入拉丁区",
+          "travelMode": "walking",
+          "stops": [
+            { "label": "埃菲尔铁塔", "query": "Eiffel Tower Paris", "lat": 48.8584, "lng": 2.2945, "kind": "sight", "time": "上午" },
+            { "label": "奥赛博物馆", "query": "Musée d'Orsay Paris", "lat": 48.86, "lng": 2.3266, "kind": "sight" },
+            { "label": "拉丁区", "query": "Latin Quarter Paris", "lat": 48.8462, "lng": 2.348, "kind": "meal", "time": "下午" }
+          ]
+        },
         "eventIds": [
           "demo-20260808-01",
           "demo-20260808-02",
@@ -130,6 +149,14 @@
         "dateOriginal": "2026-08-09",
         "theme": "",
         "route": "巴黎",
+        "routeOverview": {
+          "directionSummary": "从蒙马特向南进入巴黎市中心",
+          "travelMode": "walking",
+          "stops": [
+            { "label": "蒙马特高地", "query": "Montmartre Paris", "lat": 48.8867, "lng": 2.3431, "kind": "sight", "time": "上午" },
+            { "label": "巴黎歌剧院", "query": "Palais Garnier Paris", "lat": 48.8719, "lng": 2.3316, "kind": "stop", "time": "下午" }
+          ]
+        },
         "eventIds": [
           "demo-20260809-01",
           "demo-20260809-02",

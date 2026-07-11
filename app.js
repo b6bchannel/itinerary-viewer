@@ -2333,7 +2333,8 @@ function driveSummaryForDay(day) {
 }
 
 function routeOverviewTarget(day) {
-  if (!drivingEventForDay(day)) return null;
+  const travelMode = day.routeOverview.travelMode || (drivingEventForDay(day) ? "driving" : "");
+  if (!travelMode) return null;
   const stops = routeSketchPoints(day.routeOverview.stops).map(({ stop }) => stop);
   if (stops.length < 2) return null;
   const point = (stop) => `${stop.lat},${stop.lng}`;
@@ -2343,6 +2344,7 @@ function routeOverviewTarget(day) {
     origin: point(stops[0]),
     destination: point(stops.at(-1)),
     waypoints: stops.slice(1, -1).map(point),
+    travelMode,
   };
 }
 
@@ -2670,7 +2672,7 @@ function mapUrls(target, provider = mapProviderForTarget(target)) {
       }
       const web = `https://uri.amap.com/navigation?${webParameters}`;
       return {
-        scheme: web,
+        scheme: `iosamap://path?${schemeParameters}`,
         androidScheme: `amapuri://route/plan/?${schemeParameters}`,
         web,
       };
