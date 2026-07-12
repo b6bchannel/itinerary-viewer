@@ -790,6 +790,10 @@ footer {
 .weather-ticket--cloudy { background: #d9dee1; color: #263940; }
 .weather-ticket--storm { background: #c7b9e8; color: #241b3d; }
 .weather-ticket--snow { background: #f5f9fc; color: #24404b; }
+.weather-ticket--climate,
+.weather-ticket--historical { background: #e8efea; color: #31453b; box-shadow: none; }
+.weather-ticket--trend { background: #e8edf4; color: #344354; box-shadow: none; }
+.weather-ticket--pending { background: #eef0f1; color: #5d6366; box-shadow: none; }
 .weather-ticket__main,
 .weather-ticket__details {
   position: relative;
@@ -843,6 +847,14 @@ footer {
   font-weight: 900;
   overflow-wrap: anywhere;
 }
+.weather-status-label {
+  margin: 0;
+  color: currentColor;
+  font-size: .62rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  opacity: .7;
+}
 .weather-desc {
   margin: 0;
   font-size: 1rem;
@@ -864,8 +876,8 @@ footer {
   font-weight: 850;
 }
 .weather-pill--uv { background: rgb(255 255 255 / 76%); }
-.weather-test-note,
-.weather-cache-note {
+.weather-cache-note,
+.weather-climate-note {
   margin: 0;
   color: currentColor;
   font-size: .64rem;

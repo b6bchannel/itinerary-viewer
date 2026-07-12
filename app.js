@@ -5,6 +5,10 @@ const DB_VERSION = 7;
 const DEFAULT_TRIP_ID = "";
 const NOTE_SAVE_DELAY = 500;
 const WEATHER_CACHE_PREFIX = "weather:";
+const WEATHER_FORECAST_DAYS = 16;
+const WEATHER_TREND_DAYS = 35;
+const WEATHER_HISTORY_YEARS = 10;
+const WEATHER_HISTORY_WINDOW_DAYS = 3;
 
 const WEATHER_LOCATIONS_BY_DATE = {};
 
@@ -947,9 +951,8 @@ function dayTitleText(day) {
   return day.titleOverride || day.route || day.theme || "当日行程";
 }
 
-function weatherCacheKey(date) {
-  const requestDate = weatherRequestDate({ date });
-  return `${WEATHER_CACHE_PREFIX}${date}:${requestDate}`;
+function weatherCacheKey(kind, location, suffix = "") {
+  return `${WEATHER_CACHE_PREFIX}${kind}:${location.id || `${location.latitude},${location.longitude}`}:${suffix}`;
 }
 
 function weatherDescription(code) {
@@ -977,22 +980,29 @@ function weatherTone(code) {
   return "cloudy";
 }
 
-function isWeatherTestMode() {
-  return new URLSearchParams(window.location.search).has("weather-test");
+function weatherDayOffset(dateString) {
+  const [year, month, day] = String(dateString).split("-").map(Number);
+  const today = new Date();
+  return Math.round((Date.UTC(year, month - 1, day) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
 }
 
-function dateOffsetString(days) {
-  const value = new Date();
-  value.setDate(value.getDate() + days);
-  return [
-    value.getFullYear(),
-    String(value.getMonth() + 1).padStart(2, "0"),
-    String(value.getDate()).padStart(2, "0"),
-  ].join("-");
+function isForecastDate(day) {
+  const offset = weatherDayOffset(day.date);
+  return offset >= 0 && offset <= WEATHER_FORECAST_DAYS;
 }
 
-function weatherRequestDate(day) {
-  return isWeatherTestMode() ? dateOffsetString(14) : day.date;
+function isTrendDate(day) {
+  const offset = weatherDayOffset(day.date);
+  return offset > WEATHER_FORECAST_DAYS && offset <= WEATHER_TREND_DAYS;
+}
+
+function hasWeatherCoordinates(location) {
+  return hasWeatherNumber(location?.latitude) && hasWeatherNumber(location?.longitude);
+}
+
+function weatherCacheIsFresh(data) {
+  if (!data?.updatedAt) return false;
+  return new Date(data.updatedAt).toDateString() === new Date().toDateString();
 }
 
 function formatWeatherUpdatedAt(value) {
@@ -1005,32 +1015,23 @@ function formatWeatherUpdatedAt(value) {
   }).format(new Date(value));
 }
 
-function formatWeatherClock(value) {
-  if (!value) return "";
-  const match = String(value).match(/T(\d{2}:\d{2})/);
-  if (match) return match[1];
-  return String(value).slice(0, 5);
-}
-
 function hasWeatherNumber(value) {
   return value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value));
 }
 
-function normalizeWeatherPayload(day, location, payload, requestDate) {
+function normalizeWeatherPayload(day, location, payload) {
   const daily = payload.daily || {};
-  const index = Array.isArray(daily.time) ? daily.time.indexOf(requestDate) : -1;
+  const index = Array.isArray(daily.time) ? daily.time.indexOf(day.date) : -1;
   if (index < 0) return null;
   return {
+    type: "forecast",
     date: day.date,
-    requestDate,
-    isTest: isWeatherTestMode(),
     city: location.name,
     max: daily.temperature_2m_max?.[index],
     min: daily.temperature_2m_min?.[index],
     rain: daily.precipitation_probability_max?.[index],
-    uv: daily.uv_index_max?.[index],
-    sunrise: daily.sunrise?.[index],
-    sunset: daily.sunset?.[index],
+    precipitation: daily.precipitation_sum?.[index],
+    wind: daily.wind_speed_10m_max?.[index],
     code: daily.weather_code?.[index],
     description: weatherDescription(daily.weather_code?.[index]),
     updatedAt: new Date().toISOString(),
@@ -1039,57 +1040,191 @@ function normalizeWeatherPayload(day, location, payload, requestDate) {
 }
 
 async function fetchWeather(day, location) {
-  const requestDate = weatherRequestDate(day);
   const params = new URLSearchParams({
     latitude: String(location.latitude),
     longitude: String(location.longitude),
-    daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max,sunrise,sunset",
+    daily: "temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weather_code,wind_speed_10m_max",
+    forecast_days: String(WEATHER_FORECAST_DAYS),
     timezone: "auto",
-    start_date: requestDate,
-    end_date: requestDate,
   });
   const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, {
     cache: "no-store",
   });
   if (!response.ok) throw new Error(`天气读取失败：${response.status}`);
   const payload = await response.json();
-  return normalizeWeatherPayload(day, location, payload, requestDate);
+  return normalizeWeatherPayload(day, location, payload);
 }
 
-function renderWeatherContent(container, data, fallbackText = "暂未配置天气位置") {
+function weatherLocationForDay(day) {
+  const location = day.weatherLocation?.name ? day.weatherLocation : WEATHER_LOCATIONS_BY_DATE[day.date];
+  if (location?.name) return location;
+  const candidates = [
+    day.city,
+    day.titleOverride,
+    day.routeOverview?.city,
+    ...(day.brief?.hotelChanges || []).map((hotel) => hotel.city),
+    ...eventsForDay(day).map((event) => event.city),
+  ];
+  const name = candidates.find((value) => typeof value === "string" && value.trim() && !/[→>]/.test(value));
+  return name ? { name: name.trim() } : null;
+}
+
+async function resolveWeatherLocation(location) {
+  if (!location?.name) return hasWeatherCoordinates(location) ? { ...location, id: location.id || `${location.latitude},${location.longitude}` } : null;
+  const cacheKey = `${WEATHER_CACHE_PREFIX}place:${location.name}:${location.countryCode || ""}`;
+  const cached = state.weatherCache.get(cacheKey);
+  if (cached) return cached;
+  const params = new URLSearchParams({ name: location.name, count: "1", language: "zh", format: "json" });
+  if (location.countryCode) params.set("countryCode", location.countryCode);
+  const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`天气城市读取失败：${response.status}`);
+  const result = (await response.json()).results?.[0];
+  if (!result || !hasWeatherCoordinates(result)) return null;
+  const resolved = {
+    id: String(result.id || `${result.latitude},${result.longitude}`),
+    name: location.displayName || location.name,
+    latitude: result.latitude,
+    longitude: result.longitude,
+    countryCode: result.country_code,
+    updatedAt: new Date().toISOString(),
+  };
+  state.weatherCache.set(cacheKey, resolved);
+  await putInStore("meta", { key: cacheKey, value: resolved });
+  return resolved;
+}
+
+function dateAtYear(dateString, year, offset = 0) {
+  const [, , month, day] = String(dateString).match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
+  const value = new Date(Date.UTC(year, Number(month) - 1, Number(day) + offset));
+  return value.toISOString().slice(0, 10);
+}
+
+function historyWindow(day) {
+  const lastYear = Math.min(new Date().getFullYear() - 1, Number(day.date.slice(0, 4)) - 1);
+  const years = Array.from({ length: WEATHER_HISTORY_YEARS }, (_, index) => lastYear - index).filter((year) => year >= 1940);
+  const dates = new Set(years.flatMap((year) => Array.from({ length: WEATHER_HISTORY_WINDOW_DAYS * 2 + 1 }, (_, index) => dateAtYear(day.date, year, index - WEATHER_HISTORY_WINDOW_DAYS))));
+  const sample = Array.from(dates).sort();
+  return {
+    years,
+    dates,
+    start: sample[0],
+    end: sample[sample.length - 1],
+    label: `近${years.length}年 ${shortDate(dateAtYear(day.date, lastYear, -WEATHER_HISTORY_WINDOW_DAYS))}–${shortDate(dateAtYear(day.date, lastYear, WEATHER_HISTORY_WINDOW_DAYS))}`,
+  };
+}
+
+function average(values) {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function commonRange(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  return [sorted[Math.floor((sorted.length - 1) * 0.1)], sorted[Math.ceil((sorted.length - 1) * 0.9)]];
+}
+
+function historyAdvice({ avgHigh, avgLow, rainRatio }) {
+  const risks = [];
+  if (avgHigh >= 30) risks.push("偏热");
+  if (avgHigh <= 15) risks.push("偏冷");
+  if (avgLow <= 15) risks.push("早晚凉");
+  if (rainRatio >= 0.4) risks.push("多雨");
+  const packingHint = [avgLow <= 15 ? "准备薄外套" : "穿着轻便透气", rainRatio >= 0.3 ? "带折叠伞或雨具" : "注意防晒补水"].join("，");
+  return { risks: risks.length ? risks : ["天气温和"], packingHint: `${packingHint}。` };
+}
+
+function summarizeHistory(day, location, payload, type) {
+  const window = historyWindow(day);
+  const daily = payload.daily || {};
+  const rows = (daily.time || []).map((date, index) => ({
+    date,
+    max: Number(daily.temperature_2m_max?.[index]),
+    min: Number(daily.temperature_2m_min?.[index]),
+    precipitation: Number(daily.precipitation_sum?.[index]),
+  })).filter((row) => window.dates.has(row.date) && Number.isFinite(row.max) && Number.isFinite(row.min) && Number.isFinite(row.precipitation));
+  if (rows.length < 35) return null;
+  const highs = rows.map((row) => row.max);
+  const lows = rows.map((row) => row.min);
+  const precipitation = rows.map((row) => row.precipitation);
+  const [highLow, highHigh] = commonRange(highs);
+  const [lowLow, lowHigh] = commonRange(lows);
+  const rainRatio = rows.filter((row) => row.precipitation >= 0.1).length / rows.length;
+  const advice = historyAdvice({ avgHigh: average(highs), avgLow: average(lows), rainRatio });
+  return {
+    type,
+    city: location.name,
+    max: average(highs),
+    min: average(lows),
+    highRange: [highLow, highHigh],
+    lowRange: [lowLow, lowHigh],
+    rainRatio,
+    precipitation: average(precipitation),
+    windowLabel: window.label,
+    risks: advice.risks,
+    description: type === "trend" ? "远期趋势仅供行前准备，不是准确预报。" : "这是历史同期参考，不是天气预报。",
+    packingHint: advice.packingHint,
+    updatedAt: new Date().toISOString(),
+    source: "online",
+  };
+}
+
+async function fetchHistoricalWeather(day, location, type) {
+  const window = historyWindow(day);
+  const params = new URLSearchParams({
+    latitude: String(location.latitude),
+    longitude: String(location.longitude),
+    start_date: window.start,
+    end_date: window.end,
+    daily: "temperature_2m_max,temperature_2m_min,precipitation_sum",
+    timezone: "auto",
+  });
+  const response = await fetch(`https://archive-api.open-meteo.com/v1/archive?${params.toString()}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`历史天气读取失败：${response.status}`);
+  return summarizeHistory(day, location, await response.json(), type);
+}
+
+function pendingWeather(location, description = "缺少天气城市") {
+  return {
+    type: "pending",
+    city: location?.name || "天气城市待确认",
+    description,
+  };
+}
+
+function renderWeatherContent(container, data) {
   container.replaceChildren();
-  if (!data) {
-    container.append(createElement("p", "empty-state", fallbackText));
-    return;
-  }
-  const ticket = createElement("div", `weather-ticket weather-ticket--${weatherTone(data.code)}`);
+  const type = data?.type || "pending";
+  const ticket = createElement("div", `weather-ticket weather-ticket--${type === "forecast" ? weatherTone(data.code) : type}`);
   const main = createElement("div", "weather-ticket__main");
-  main.append(createElement("p", "weather-icon", weatherIcon(data.code)));
+  main.append(createElement("p", "weather-icon", type === "forecast" ? weatherIcon(data.code) : "◌"));
   const temperature = createElement("div");
   if (hasWeatherNumber(data.max) && hasWeatherNumber(data.min)) {
     temperature.append(createElement("p", "weather-temp", String(Math.round(data.max))));
-    temperature.append(createElement("p", "weather-temp-sub", `最低 ${Math.round(data.min)}°`));
+    temperature.append(createElement("p", "weather-temp-sub", `${["historical", "trend"].includes(type) ? "平均最低" : "最低"} ${Math.round(data.min)}°`));
   } else {
     temperature.append(createElement("p", "weather-temp weather-temp--pending", "—"));
-    temperature.append(createElement("p", "weather-temp-sub", "暂无预报"));
+    temperature.append(createElement("p", "weather-temp-sub", type === "pending" ? "尚未进入预报期" : "暂无温度参考"));
   }
   main.append(temperature);
   ticket.append(main);
 
   const details = createElement("div", "weather-ticket__details");
+  details.append(createElement("p", "weather-status-label", type === "historical" ? "历史同期参考" : type === "trend" ? "远期天气趋势" : "天气预报"));
   details.append(createElement("p", "weather-city", data.city));
   details.append(createElement("p", "weather-desc", data.description));
   const pills = createElement("div", "weather-pills");
-  if (hasWeatherNumber(data.uv)) {
-    pills.append(createElement("span", "weather-pill weather-pill--uv", `UV ${Math.round(data.uv)}`));
+  if (["historical", "trend"].includes(type)) {
+    if (data.windowLabel) pills.append(createElement("span", "weather-pill", data.windowLabel));
+    if (data.highRange) pills.append(createElement("span", "weather-pill", `高温常见 ${Math.round(data.highRange[0])}–${Math.round(data.highRange[1])}°`));
+    if (data.lowRange) pills.append(createElement("span", "weather-pill", `低温常见 ${Math.round(data.lowRange[0])}–${Math.round(data.lowRange[1])}°`));
+    if (hasWeatherNumber(data.rainRatio)) pills.append(createElement("span", "weather-pill", `雨日 ${Math.round(data.rainRatio * 100)}%`));
+    if (hasWeatherNumber(data.precipitation)) pills.append(createElement("span", "weather-pill", `平均雨量 ${data.precipitation.toFixed(1)} mm`));
+    (data.risks || []).forEach((risk) => pills.append(createElement("span", "weather-pill", risk)));
   }
-  if (data.sunrise) pills.append(createElement("span", "weather-pill", `日出 ${formatWeatherClock(data.sunrise)}`));
-  if (data.sunset) pills.append(createElement("span", "weather-pill", `日落 ${formatWeatherClock(data.sunset)}`));
-  if (hasWeatherNumber(data.rain)) pills.append(createElement("span", "weather-pill", `降水 ${Math.round(data.rain)}%`));
+  if (type === "forecast" && hasWeatherNumber(data.rain)) pills.append(createElement("span", "weather-pill", `降水 ${Math.round(data.rain)}%`));
+  if (type === "forecast" && hasWeatherNumber(data.precipitation)) pills.append(createElement("span", "weather-pill", `雨量 ${data.precipitation} mm`));
+  if (type === "forecast" && hasWeatherNumber(data.wind)) pills.append(createElement("span", "weather-pill", `风 ${Math.round(data.wind)} km/h`));
   if (pills.children.length) details.append(pills);
-  if (isWeatherTestMode() && data.isTest && data.requestDate) {
-    details.append(createElement("p", "weather-test-note", `接口测试：使用 ${shortDate(data.requestDate)} 的可用预报`));
-  }
+  if (data.packingHint) details.append(createElement("p", "weather-climate-note", data.packingHint));
   if (data.source === "cache") {
     details.append(createElement("p", "weather-cache-note", `离线缓存 · ${formatWeatherUpdatedAt(data.updatedAt)}`));
   } else {
@@ -1101,52 +1236,41 @@ function renderWeatherContent(container, data, fallbackText = "暂未配置天�
 }
 
 async function updateWeatherCard(day, container) {
-  const location = day.weatherLocation || WEATHER_LOCATIONS_BY_DATE[day.date];
-  if (!location) {
-    renderWeatherContent(container, null);
+  const requestedLocation = weatherLocationForDay(day);
+  if (!requestedLocation) {
+    renderWeatherContent(container, pendingWeather(null));
     return;
   }
-  const cached = state.weatherCache.get(day.date);
-  if (cached) {
-    renderWeatherContent(container, { ...cached, source: navigator.onLine ? "cache" : "cache" });
-  } else {
-    renderWeatherContent(container, { city: location.name, max: null, min: null, rain: null, uv: null, description: "正在更新天气…", updatedAt: null, source: "online" });
-  }
-  if (!navigator.onLine) return;
+  let location;
   try {
-    const fresh = await fetchWeather(day, location);
+    location = await resolveWeatherLocation(requestedLocation);
+  } catch (error) {
+    console.warn("天气城市更新失败", error);
+    renderWeatherContent(container, pendingWeather(requestedLocation, `无法识别天气城市：${requestedLocation.name}`));
+    return;
+  }
+  if (!location) {
+    renderWeatherContent(container, pendingWeather(requestedLocation, `无法识别天气城市：${requestedLocation.name}`));
+    return;
+  }
+  const type = isForecastDate(day) ? "forecast" : isTrendDate(day) ? "trend" : "historical";
+  const cacheKey = weatherCacheKey(type, location, type === "forecast" ? day.date : `${day.date.slice(5)}:${WEATHER_HISTORY_WINDOW_DAYS}`);
+  const cached = state.weatherCache.get(cacheKey);
+  if (cached) renderWeatherContent(container, { ...cached, source: "cache" });
+  else renderWeatherContent(container, pendingWeather(location, navigator.onLine ? "正在更新天气" : "暂无缓存天气"));
+  if (!navigator.onLine || (type === "forecast" && weatherCacheIsFresh(cached)) || cached) return;
+  try {
+    const fresh = type === "forecast" ? await fetchWeather(day, location) : await fetchHistoricalWeather(day, location, type);
     if (!fresh) {
-      if (!cached) {
-        renderWeatherContent(container, {
-          city: location.name,
-          max: null,
-          min: null,
-          rain: null,
-          uv: null,
-          description: "预报暂未开放，出发前约两周再更新",
-          updatedAt: null,
-          source: "online",
-        });
-      }
+      if (!cached) renderWeatherContent(container, pendingWeather(location, "暂无可用天气数据"));
       return;
     }
-    state.weatherCache.set(day.date, fresh);
-    await putInStore("meta", { key: weatherCacheKey(day.date), value: fresh });
+    state.weatherCache.set(cacheKey, fresh);
+    await putInStore("meta", { key: cacheKey, value: fresh });
     renderWeatherContent(container, fresh);
   } catch (error) {
     console.warn("天气更新失败", error);
-    if (!cached) {
-      renderWeatherContent(container, {
-        city: location.name,
-        max: null,
-        min: null,
-        rain: null,
-        uv: null,
-        description: "预报暂未开放，出发前约两周再更新",
-        updatedAt: null,
-        source: "online",
-      });
-    }
+    if (!cached) renderWeatherContent(container, pendingWeather(location, "暂时无法更新天气"));
   }
 }
 
@@ -3000,7 +3124,7 @@ async function initialize(itinerary) {
   state.checklistItems = checklistItems;
   state.weatherCache = new Map(metaRows
     .filter((row) => String(row.key).startsWith(WEATHER_CACHE_PREFIX))
-    .map((row) => [String(row.key).slice(WEATHER_CACHE_PREFIX.length).split(":")[0], row.value]));
+    .map((row) => [row.key, row.value]));
   applyEffectiveItinerary();
   if (!state.itinerary.days.length) {
     throw new Error("所有行程日都已在本机删除，无法继续显示");

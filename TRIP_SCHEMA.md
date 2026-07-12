@@ -1,5 +1,23 @@
 # TRIP_SCHEMA.md
 
+## Weather location (current)
+
+Write one city per day; the PWA geocodes only this city name and optional ISO alpha-2 country code. It does not use hotel addresses, bookings, notes, or route stops.
+
+```json
+{
+  "weatherLocation": {
+    "name": "Harbin",
+    "countryCode": "CN",
+    "displayName": "哈尔滨"
+  }
+}
+```
+
+`name` is required. `countryCode` prevents same-name city mismatches. No latitude, longitude, or manual climate reference is required: 0-16 days uses the forecast API, 17-35 days shows a clearly marked long-range trend, and later days calculate a historical reference from the seven-day window centered on the travel date across the previous ten years. The older `weatherClimate` / `climateReference` section below is legacy documentation and is not needed for new packages.
+
+AI prompt rule: include `weatherLocation.name` for every day and `countryCode` whenever the country is known. If the city cannot be determined conservatively, add a review item instead of using a hotel address, attraction address, or route coordinate.
+
 Travel Plan 现在读取单文件旅行包：
 
 ```text
@@ -75,6 +93,42 @@ Travel Plan 现在读取单文件旅行包：
 - `brief.keyTransportEventIds`
 - `brief.importantEventIds`
 - `weatherLocation`：有经纬度则显示天气；没有则降级显示。
+
+### Weather location
+
+Use one city per day. The app geocodes only this city name and optional ISO alpha-2 country code; it does not use hotel addresses, bookings, notes, or route stops.
+
+```json
+{
+  "weatherLocation": {
+    "name": "Harbin",
+    "countryCode": "CN",
+    "displayName": "哈尔滨"
+  }
+}
+```
+
+`name` is required. `countryCode` prevents same-name city mismatches. No latitude, longitude, or manual `climateReference` is required: 0-16 days uses the forecast API, 17-35 days shows a clearly marked long-range trend, and later days calculate a historical reference from the same city and the seven-day window centered on the travel date across the previous ten years.
+
+### Legacy weatherClimate / climateReference（可选）
+
+未来超过 16 天的日期不会请求天气预报。需要在远期显示气候参考时，可在当天写 `weatherClimate` 或 `climateReference`（`historicalWeather` 也兼容）：
+
+```json
+{
+  "weatherClimate": {
+    "type": "climate-reference",
+    "source": "historical",
+    "avgHigh": 24,
+    "avgLow": 16,
+    "rainRisk": "medium",
+    "summary": "近年同期多云到阵雨，早晚偏凉。",
+    "packingHint": "建议准备薄外套和折叠伞。"
+  }
+}
+```
+
+这是历史气候参考，不是天气预报。没有该字段时，天气卡片会显示“尚未进入天气预报期”，并提示出发前约 16 天自动显示正式预报。
 
 ### routeOverview（可选）
 

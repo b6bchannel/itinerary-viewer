@@ -59,8 +59,7 @@
         },
         "weatherLocation": {
           "name": "巴黎",
-          "latitude": 48.8566,
-          "longitude": 2.3522
+          "countryCode": "FR"
         }
       },
       {
@@ -100,8 +99,7 @@
         },
         "weatherLocation": {
           "name": "巴黎",
-          "latitude": 48.8566,
-          "longitude": 2.3522
+          "countryCode": "FR"
         }
       },
       {
@@ -140,8 +138,7 @@
         },
         "weatherLocation": {
           "name": "巴黎",
-          "latitude": 48.8566,
-          "longitude": 2.3522
+          "countryCode": "FR"
         }
       },
       {
@@ -179,8 +176,7 @@
         },
         "weatherLocation": {
           "name": "巴黎",
-          "latitude": 48.8566,
-          "longitude": 2.3522
+          "countryCode": "FR"
         }
       },
       {
@@ -218,8 +214,7 @@
         },
         "weatherLocation": {
           "name": "里昂",
-          "latitude": 45.764,
-          "longitude": 4.8357
+          "countryCode": "FR"
         }
       },
       {
@@ -247,8 +242,7 @@
         },
         "weatherLocation": {
           "name": "里昂",
-          "latitude": 45.764,
-          "longitude": 4.8357
+          "countryCode": "FR"
         }
       },
       {
@@ -286,8 +280,7 @@
         },
         "weatherLocation": {
           "name": "阿维尼翁",
-          "latitude": 43.9493,
-          "longitude": 4.8055
+          "countryCode": "FR"
         }
       },
       {
@@ -317,8 +310,7 @@
         },
         "weatherLocation": {
           "name": "阿维尼翁",
-          "latitude": 43.9493,
-          "longitude": 4.8055
+          "countryCode": "FR"
         }
       },
       {
@@ -356,8 +348,7 @@
         },
         "weatherLocation": {
           "name": "尼斯",
-          "latitude": 43.7102,
-          "longitude": 7.262
+          "countryCode": "FR"
         }
       },
       {
@@ -387,8 +378,7 @@
         },
         "weatherLocation": {
           "name": "尼斯",
-          "latitude": 43.7102,
-          "longitude": 7.262
+          "countryCode": "FR"
         }
       }
     ],
