@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "20260724-weather-v6";
+const APP_VERSION = "20260726-todo-v3";
 const DB_NAME = "travel-plan-starter";
 const DB_VERSION = 7;
 const DEFAULT_TRIP_ID = "";
@@ -1406,7 +1406,7 @@ function appendHotel(container, label, hotel) {
   block.append(createElement("p", "brief-label", label));
   block.append(createElement("p", "brief-main", hotel.name));
   if (hotel.address) block.append(createElement("p", "brief-detail", hotel.address));
-  if (hotel.address) block.append(createMapActions({ label: hotel.name, query: hotel.address }));
+  if (hotel.name) block.append(createMapActions({ label: hotel.name, query: hotel.name }));
   container.append(block);
 }
 
@@ -1664,9 +1664,17 @@ function checklistCheckIcon() {
   return icon;
 }
 
+function openChecklistRelatedDay(item) {
+  const relatedDate = item.relatedDate || state.eventsById.get(item.relatedItemId)?.date;
+  const index = state.itinerary.days.findIndex((day) => day.date === relatedDate);
+  if (index < 0) return;
+  state.selectedIndex = index;
+  setViewMode("all");
+}
+
 function createChecklistItem(item, completed) {
   const row = createElement("div", `checklist-item${completed ? " checklist-item--done" : ""}`);
-  row.addEventListener("click", () => openChecklistEditDialog(item));
+  row.addEventListener("click", () => openChecklistRelatedDay(item));
   const checkbox = createElement("button", "checklist-checkbox");
   checkbox.type = "button";
   checkbox.setAttribute("aria-label", completed ? "恢复待办" : "完成待办");
@@ -1676,11 +1684,25 @@ function createChecklistItem(item, completed) {
     await setChecklistDone(item.id, !completed);
   });
 
-  const body = createElement("button", "checklist-body");
-  body.type = "button";
-  body.append(createElement("span", "checklist-title", item.title));
+  const body = createElement("div", "checklist-body");
+  const titleLine = createElement("span", "checklist-title-line");
+  const titleAction = createElement("button", "checklist-title-action");
+  titleAction.type = "button";
+  titleAction.append(createElement("span", "checklist-title", item.title));
+  titleLine.append(titleAction);
+  body.append(titleLine);
   body.append(createElement("span", "checklist-meta", checklistMetaText(item)));
   if (item.note && !completed) body.append(createElement("span", "checklist-note", item.note));
+
+  const edit = createElement("button", "checklist-edit");
+  edit.type = "button";
+  edit.setAttribute("aria-label", "编辑待办");
+  edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+  edit.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openChecklistEditDialog(item);
+  });
+  titleLine.append(edit);
 
   const remove = createElement("button", "checklist-delete", "×");
   remove.type = "button";
@@ -1703,34 +1725,35 @@ function ensureChecklistEditDialog() {
   return dialog;
 }
 
-function openChecklistEditDialog(item) {
+function openChecklistEditDialog(item = null) {
+  const isNew = !item;
+  const source = item || { title: "", dueDate: "", relatedDate: "", note: "" };
   const dialog = ensureChecklistEditDialog();
   dialog.replaceChildren();
   const form = createElement("form", "edit-form checklist-edit-form");
   form.method = "dialog";
+  form.append(createElement("div", "trip-manager-sheet__grab checklist-edit-sheet__grab"));
   const heading = createElement("div", "edit-form__heading");
   const title = createElement("div");
   title.append(createElement("p", "eyebrow", "LOCAL TODO"));
-  title.append(createElement("h2", "", "编辑待办"));
+  title.append(createElement("h2", "", isNew ? "新增待办" : "编辑待办"));
   const close = createElement("button", "dialog-close", "×");
   close.type = "button";
   close.addEventListener("click", () => dialog.close());
   heading.append(title, close);
 
-  const titleField = createChecklistField("标题", "text", item.title);
-  const dueField = createChecklistField("截止日期", "date", item.dueDate);
-  const priorityField = createElement("label", "form-field");
-  priorityField.append(createElement("span", "", "优先级"));
-  const priority = createElement("select");
-  priority.innerHTML = '<option value="normal">普通</option><option value="high">高</option>';
-  priority.value = item.priority === "high" || item.priority === "urgent" ? "high" : "normal";
-  priorityField.append(priority);
-  const relatedField = createChecklistField("关联日期", "date", item.relatedDate);
+  const titleField = createChecklistField("待办标题", "text", source.title);
+  titleField.input.required = true;
+  const dueField = createChecklistField("截止日期", "date", source.dueDate);
+  const relatedField = createChecklistField("关联日期", "date", source.relatedDate);
+  titleField.field.classList.add("form-field--wide");
+  dueField.field.classList.add("checklist-date-field", "checklist-date-field--due");
+  relatedField.field.classList.add("checklist-date-field", "checklist-date-field--related");
   const noteField = createElement("label", "form-field form-field--wide");
-  noteField.append(createElement("span", "", "补充说明"));
+  noteField.append(createElement("span", "", "备注"));
   const note = createElement("textarea");
   note.rows = 4;
-  note.value = item.note || "";
+  note.value = source.note || "";
   noteField.append(note);
   const actions = createElement("div", "edit-form__actions form-field--wide");
   const cancel = createElement("button", "secondary-button", "不保存");
@@ -1740,17 +1763,28 @@ function openChecklistEditDialog(item) {
   save.type = "submit";
   actions.append(cancel, save);
 
-  form.append(heading, titleField.field, dueField.field, priorityField, relatedField.field, noteField, actions);
+  form.append(heading, titleField.field, dueField.field, relatedField.field, noteField, actions);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await saveChecklistState(item.id, {
+    const id = item?.id || `local-todo-${crypto.randomUUID?.() || Date.now()}`;
+    const edits = {
+      ...(item ? checklistRow(item.id).edits : {}),
+      title: titleField.input.value.trim(),
+      dueDate: dueField.input.value,
+      dueLabel: "",
+      relatedDate: relatedField.input.value,
+      note: note.value.trim(),
+    };
+    if (isNew) {
+      state.checklistItems.push({
+        id,
+        ...edits,
+      });
+    }
+    await saveChecklistState(id, {
+      created: isNew || checklistRow(id).created,
       edits: {
-        title: titleField.input.value.trim() || item.title,
-        dueDate: dueField.input.value,
-        dueLabel: "",
-        priority: priority.value,
-        relatedDate: relatedField.input.value,
-        note: note.value.trim(),
+        ...edits,
       },
     });
     dialog.close();
@@ -1776,7 +1810,6 @@ function renderChecklistPanel() {
   const wasOpen = Boolean(elements.checklistPanel.querySelector(".checklist-panel")?.open);
   const doneWasOpen = Boolean(elements.checklistPanel.querySelector(".checklist-done")?.open);
   elements.checklistPanel.replaceChildren();
-  if (!items.length) return;
 
   const pending = items.filter((item) => !isChecklistDone(item.id)).sort(sortOpenChecklist);
   const completed = items.filter((item) => isChecklistDone(item.id)).sort(sortCompletedChecklist);
@@ -1785,8 +1818,16 @@ function renderChecklistPanel() {
 
   const summary = createElement("summary", "checklist-summary");
   const title = createElement("span", "checklist-summary__title", "待办");
-  const count = pending.length ? `${pending.length} 项未完成` : "全部完成";
-  summary.append(title, createElement("span", "checklist-summary__count", count));
+  const count = pending.length ? `${pending.length} 项未完成` : (completed.length ? "全部完成" : "暂无待办");
+  const add = createElement("button", "checklist-add", "+");
+  add.type = "button";
+  add.setAttribute("aria-label", "新增待办");
+  add.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openChecklistEditDialog();
+  });
+  summary.append(title, createElement("span", "checklist-summary__count", count), add);
   details.append(summary);
 
   if (pending.length) {
@@ -2566,8 +2607,8 @@ function drivingEventForDay(day) {
 
 function driveSummaryForDay(day) {
   const detail = drivingEventForDay(day)?.transportCard?.segments?.[0]?.detail || "";
-  const distance = detail.match(/\b\d+(?:\.\d+)?\s*km\b/i)?.[0];
-  const duration = detail.match(/约\s*\d+小时(?:\d+分)?|约\s*\d+分/)?.[0];
+  const distance = detail.match(/(?:约\s*)?\d+(?:\.\d+)?(?:\s*[–—~～-]\s*\d+(?:\.\d+)?)?\s*km\b/i)?.[0];
+  const duration = detail.match(/约\s*\d+(?:\.\d+)?(?:\s*[–—~～-]\s*\d+(?:\.\d+)?)?\s*(?:小时|分钟|分)/)?.[0];
   return [distance, duration].filter(Boolean).join(" · ");
 }
 
@@ -3236,7 +3277,13 @@ async function initialize(itinerary) {
   state.dayDeletions = new Map(dayDeletionRows.filter(belongsToCurrentTrip).map((row) => [row.id, row]));
   state.extraDays = new Map(extraDayRows.filter(belongsToCurrentTrip).map((row) => [row.date, row]));
   state.dayTitles = new Map(dayTitleRows.filter(belongsToCurrentTrip).map((row) => [row.date, row]));
-  state.checklistItems = checklistItems;
+  const baseChecklistIds = new Set(checklistItems.map((item) => item.id));
+  state.checklistItems = [
+    ...checklistItems,
+    ...[...state.checklistCompletions.values()]
+      .filter((row) => row.created && row.edits?.title && !baseChecklistIds.has(row.id))
+      .map((row) => ({ id: row.id, ...row.edits })),
+  ];
   state.weatherCache = new Map(metaRows
     .filter((row) => String(row.key).startsWith(WEATHER_CACHE_PREFIX))
     .map((row) => [row.key, row.value]));

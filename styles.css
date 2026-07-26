@@ -225,15 +225,6 @@ footer {
 .checklist-done__summary::-webkit-details-marker {
   display: none;
 }
-.checklist-summary::before {
-  content: "＋";
-  width: 1rem;
-  color: var(--muted);
-  font-size: .9rem;
-}
-.checklist-panel[open] > .checklist-summary::before {
-  content: "－";
-}
 .checklist-summary__title {
   flex: 1;
   font-size: .88rem;
@@ -244,6 +235,18 @@ footer {
   font-size: .76rem;
   font-weight: 700;
 }
+.checklist-add {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 1.55rem;
+  font-weight: 650;
+  line-height: 1;
+}
 .checklist-list {
   display: grid;
   gap: 0;
@@ -251,7 +254,7 @@ footer {
 }
 .checklist-item {
   display: grid;
-  grid-template-columns: 2.45rem minmax(0, 1fr) 2.25rem;
+  grid-template-columns: 2.45rem minmax(0, 1fr) 2.1rem;
   align-items: start;
   min-height: 3.45rem;
   border-bottom: 1px solid var(--line);
@@ -271,7 +274,7 @@ footer {
 .checklist-delete {
   display: grid;
   place-items: center;
-  width: 2.25rem;
+  width: 2.1rem;
   height: 2.75rem;
   border: 0;
   background: transparent;
@@ -308,11 +311,46 @@ footer {
 .checklist-delete:hover {
   color: var(--danger);
 }
+.checklist-edit {
+  display: grid;
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.checklist-edit svg {
+  width: .92rem;
+  height: .92rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.checklist-edit:hover {
+  color: var(--accent);
+}
 .checklist-title {
   color: var(--text);
   font-size: .9rem;
   font-weight: 720;
   line-height: 1.35;
+}
+.checklist-title-line {
+  display: flex;
+  align-items: center;
+  gap: .28rem;
+  min-width: 0;
+}
+.checklist-title-action {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
 }
 .checklist-meta,
 .checklist-note {
@@ -2109,6 +2147,22 @@ input[type="time"] {
     min-height: clamp(13.5rem, 30vw, 16rem);
   }
 }
+.edit-dialog.checklist-edit-dialog {
+  top: auto;
+  right: auto;
+  bottom: 0;
+  left: 50%;
+  width: min(100%, 38rem);
+  max-width: min(100%, 38rem);
+  max-height: min(86dvh, 40rem);
+  margin: 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  transform: translateX(-50%);
+}
+.checklist-edit-sheet__grab {
+  grid-column: 1 / -1;
+  margin-top: -.35rem;
+}
 
 @media (max-width: 34rem) {
   html,
@@ -2220,6 +2274,8 @@ input[type="time"] {
   .edit-form__heading {
     grid-column: 1 / -1;
   }
+  .checklist-edit-form .checklist-date-field--due { grid-column: 1; }
+  .checklist-edit-form .checklist-date-field--related { grid-column: 2; }
   .form-field--time-start { grid-column: 1; }
   .form-field--time-end { grid-column: 2; }
   .edit-form__actions {
