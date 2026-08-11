@@ -737,7 +737,7 @@ footer {
 .today-summary-card--weather,
 .brief-card--weather {
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   border: 0;
   background: transparent;
   box-shadow: none;
@@ -782,6 +782,11 @@ footer {
   box-shadow: 0 .45rem 1.3rem rgb(39 33 28 / 8%);
   cursor: pointer;
   outline: none;
+}
+.weather-card-body,
+#brief-weather {
+  display: grid;
+  min-width: 0;
 }
 .weather-ticket:focus-visible {
   box-shadow: 0 0 0 .18rem color-mix(in srgb, var(--accent) 45%, white), 0 .45rem 1.3rem rgb(39 33 28 / 8%);
@@ -986,25 +991,31 @@ footer {
 }
 .weather-update-status {
   display: block;
+  appearance: none;
+  justify-self: end;
   width: max-content;
   max-width: calc(100% - .6rem);
-  margin: .3rem .6rem 0 auto;
+  min-height: 0;
+  margin: .22rem .6rem 0 0;
   padding: 0;
   border: 0;
+  border-radius: 0;
   background: transparent;
-  color: #a4a8ae;
+  box-shadow: none;
+  color: #afb2b7;
   font: inherit;
-  font-size: .6rem;
-  font-weight: 620;
+  font-size: .56rem;
+  font-weight: 500;
+  letter-spacing: 0;
   line-height: 1.35;
   text-align: right;
+  white-space: nowrap;
   cursor: pointer;
 }
 .weather-update-status:hover,
 .weather-update-status:focus-visible {
-  color: var(--muted);
-  text-decoration: underline;
-  text-underline-offset: .16em;
+  color: #8f949b;
+  text-decoration: none;
   outline: none;
 }
 .weather-update-status[hidden] {
