@@ -1,0 +1,1496 @@
+{
+  "kind": "travel-plan-package",
+  "version": 1,
+  "tripId": "heilongjiang-roadtrip-2026",
+  "fileName": "harbin_260731.travel.json",
+  "tripMeta": {
+    "id": "heilongjiang-roadtrip-2026",
+    "title": "黑龙江自驾10日行程",
+    "dateStart": "2026-07-31",
+    "dateEnd": "2026-08-10",
+    "mapProvider": "amap",
+    "status": "planned",
+    "lastUpdated": "2026-07-05"
+  },
+  "trip": {
+    "metadata": {
+      "title": "黑龙江自驾10日行程",
+      "dateStart": "2026-07-31",
+      "dateEnd": "2026-08-10",
+      "mapProvider": "amap"
+    },
+    "days": [
+      {
+        "date": "2026-07-31",
+        "route": "宁波 → 哈尔滨",
+        "routeOverview": {
+          "directionSummary": "整体向东北推进",
+          "stops": [
+            { "label": "宁波栎社国际机场 T2", "query": "宁波栎社国际机场 T2", "lat": 29.8267, "lng": 121.4619, "kind": "place" },
+            { "label": "哈尔滨太平国际机场 T2", "query": "哈尔滨太平国际机场 T2", "lat": 45.6234, "lng": 126.2503, "kind": "place" },
+            { "label": "哈尔滨机场迈凯伦酒店", "query": "哈尔滨机场迈凯伦酒店（太平国际机场 T2 航站楼 P2 店）", "lat": 45.6262, "lng": 126.2528, "kind": "place" }
+          ]
+        },
+        "weatherLocation": {
+          "displayName": "哈尔滨",
+          "name": "哈尔滨",
+          "countryCode": "CN",
+          "latitude": 45.804,
+          "longitude": 126.535,
+          "source": "city-center"
+        },
+        "eventIds": [
+          "d01-flight-mu5650",
+          "d01-hotel-checkin"
+        ],
+        "brief": {
+          "hotelChanges": [
+            {
+              "eventId": "d01-hotel-checkin",
+              "action": "check-in",
+              "hotelName": "哈尔滨机场迈凯伦酒店（太平国际机场 T2 航站楼 P2 店）",
+              "address": "黑龙江省哈尔滨市道里区太平国际机场空港一路1号",
+              "note": "1间家庭房，含2早。"
+            }
+          ],
+          "keyTransportEventIds": [
+            "d01-flight-mu5650"
+          ],
+          "importantEventIds": [
+            "d01-hotel-checkin"
+          ]
+        }
+      },
+      {
+        "date": "2026-08-01",
+        "route": "哈尔滨 → 伊春",
+        "routeOverview": {
+          "directionSummary": "整体向东北推进",
+          "stops": [
+            { "label": "哈尔滨太平机场神州租车", "query": "哈尔滨太平机场神州租车服务点", "lat": 45.6237, "lng": 126.2511, "kind": "place" },
+            { "label": "伊春森氧假日酒店", "query": "伊春森氧假日酒店", "lat": 47.7275, "lng": 128.8656, "kind": "place" },
+            { "label": "金山鹿苑", "query": "金山鹿苑", "lat": 47.4317, "lng": 129.4185, "kind": "place" }
+          ]
+        },
+        "weatherLocation": {
+          "displayName": "伊春",
+          "name": "伊春",
+          "countryCode": "CN",
+          "latitude": 47.727,
+          "longitude": 128.841,
+          "source": "city-center"
+        },
+        "eventIds": [
+          "d02-car-pickup",
+          "d02-drive-harbin-yichun",
+          "d02-drive-info-harbin-yichun",
+          "d02-hotel-checkin",
+          "d02-jinshan-deer-park"
+        ],
+        "brief": {
+          "hotelChanges": [
+            {
+              "eventId": "d02-hotel-checkin",
+              "action": "check-in",
+              "hotelName": "伊春森氧假日酒店",
+              "address": "黑龙江省伊春市伊美区青山西大街25号",
+              "note": "1间家庭房，含1早（儿童免费）。"
+            }
+          ],
+          "keyTransportEventIds": [
+            "d02-drive-harbin-yichun"
+          ],
+          "importantEventIds": [
+            "d02-hotel-checkin"
+          ]
+        }
+      },
+      {
+        "date": "2026-08-02",
+        "route": "伊春 → 汤旺河 → 伊春",
+        "routeOverview": {
+          "directionSummary": "先向东北，再向西南返回伊春",
+          "stops": [
+            { "label": "伊春森氧假日酒店", "query": "伊春森氧假日酒店", "lat": 47.7275, "lng": 128.8656, "kind": "place" },
+            { "label": "汤旺河林海奇石景区", "query": "汤旺河林海奇石景区", "lat": 48.4417, "lng": 129.375, "kind": "place" },
+            { "label": "伊春森氧假日酒店", "query": "伊春森氧假日酒店", "lat": 47.7275, "lng": 128.8656, "kind": "place" }
+          ]
+        },
+        "weatherLocation": {
+          "displayName": "伊春",
+          "name": "伊春",
+          "countryCode": "CN",
+          "latitude": 47.727,
+          "longitude": 128.841,
+          "source": "city-center"
+        },
+        "eventIds": [
+          "d03-drive-tangwanghe",
+          "d03-drive-info-tangwanghe",
+          "d03-tangwanghe-scenic",
+          "d03-hotel-stay"
+        ],
+        "brief": {
+          "hotelChanges": [
+            {
+              "eventId": "d03-hotel-stay",
+              "action": "stay",
+              "hotelName": "伊春森氧假日酒店",
+              "address": "黑龙江省伊春市伊美区青山西大街25号",
+              "note": "续住，1间家庭房，含1早（儿童免费）。"
+            }
+          ],
+          "keyTransportEventIds": [
+            "d03-drive-tangwanghe"
+          ],
+          "importantEventIds": [
+            "d03-hotel-stay"
+          ]
+        }
+      },
+      {
+        "date": "2026-08-03",
+        "route": "伊春 → 呼伦贝尔市",
+        "routeOverview": {
+          "directionSummary": "整体向西北推进",
+          "stops": [
+            { "label": "伊春森氧假日酒店", "query": "伊春森氧假日酒店", "lat": 47.7275, "lng": 128.8656, "kind": "place" },
+            { "label": "云酒店（呼伦贝尔海拉尔店）", "query": "云酒店（呼伦贝尔海拉尔店）", "lat": 49.2131, "lng": 119.7702, "kind": "place" }
+          ]
+        },
+        "weatherLocation": {
+          "displayName": "海拉尔",
+          "name": "海拉尔",
+          "countryCode": "CN",
+          "latitude": 49.212,
+          "longitude": 119.736,
+          "source": "city-center"
+        },
+        "eventIds": [
+          "d04-drive-yichun-hulunbuir",
+          "d04-drive-info-yichun-hulunbuir",
+          "d04-hotel-checkin"
+        ],
+        "brief": {
+          "hotelChanges": [
+            {
+              "eventId": "d04-hotel-checkin",
+              "action": "check-in",
+              "hotelName": "云酒店（呼伦贝尔海拉尔店）",
+              "address": "内蒙古自治区呼伦贝尔市海拉尔区阿里河路26号",
+              "note": "2间双床房，含4早。"
+            }
+          ],
+          "keyTransportEventIds": [
+            "d04-drive-yichun-hulunbuir"
+          ],
+          "importantEventIds": [
+            "d04-hotel-checkin"
+          ]
+        }
+      },
+      {
+        "date": "2026-08-04",
+        "route": "呼伦贝尔大草原 → 根河",
+        "routeOverview": {
+          "directionSummary": "先向西进入草原，再向东北前往根河",
+          "stops": [
+            { "label": "云酒店（呼伦贝尔海拉尔店）", "query": "云酒店（呼伦贝尔海拉尔店）", "lat": 49.2131, "lng": 119.7702, "kind": "place" },
+            { "label": "呼伦贝尔大草原", "query": "呼伦贝尔大草原", "lat": 49.3392, "lng": 119.4439, "kind": "place" },
+            { "label": "悦·轻居酒店（根河敖鲁古雅路店）", "query": "呼伦贝尔根河市悦·轻居酒店（敖鲁古雅路店）", "lat": 50.7816, "lng": 121.5205, "kind": "place" }
+          ]
+        },
+        "weatherLocation": {
+          "displayName": "根河",
+          "name": "根河",
+          "countryCode": "CN",
+          "latitude": 50.780,
+          "longitude": 121.520,
+          "source": "city-center"
+        },
+        "eventIds": [
+          "d05-hulunbuir-grassland",
+          "d05-drive-grassland-genhe",
+          "d05-drive-info-grassland-genhe",
+          "d05-hotel-checkin"
+        ],
+        "brief": {
+          "hotelChanges": [
+            {
+              "eventId": "d05-hotel-checkin",
+              "action": "check-in",
+              "hotelName": "呼伦贝尔根河市悦·轻居酒店（敖鲁古雅路店）",
+              "address": "内蒙古自治区根河市花园街888号",
+              "note": "1间大床、1间双床，含4早。"
+            }
+          ],
+          "keyTransportEventIds": [
+            "d05-drive-grassland-genhe"
+          ],
+          "importantEventIds": [
+            "d05-hotel-checkin"
+          ]
+        }
+      },
+      {
+        "date": "2026-08-05",
+        "route": "根河 → 北红村",
+        "routeOverview": {
+          "directionSummary": "整体向东北推进",
+          "stops": [
+            { "label": "悦·轻居酒店（根河敖鲁古雅路店）", "query": "呼伦贝尔根河市悦·轻居酒店（敖鲁古雅路店）", "lat": 50.7816, "lng": 121.5205, "kind": "place" },
+            { "label": "漠河梦之圆客栈", "query": "漠河梦之圆客栈", "lat": 53.5078, "lng": 123.4921, "kind": "place" }
+          ]
+        },
+        "weatherLocation": {
+          "displayName": "北红村",
+          "name": "北红村",
+          "countryCode": "CN",
+          "latitude": 53.508,
+          "longitude": 123.492,
+          "source": "manual"
+        },
+        "eventIds": [
+          "d06-drive-genhe-beihong",
+          "d06-drive-info-genhe-beihong",
+          "d06-hotel-checkin"
+        ],
+        "brief": {
+          "hotelChanges": [
+            {
+              "eventId": "d06-hotel-checkin",
+              "action": "check-in",
+              "hotelName": "漠河梦之圆客栈",
+              "address": "黑龙江省漠河市北极镇北红村主街东头南侧",
+              "note": "2间大炕房，含4早。"
+            }
+          ],
+          "keyTransportEventIds": [
+            "d06-drive-genhe-beihong"
+          ],
+          "importantEventIds": [
+            "d06-hotel-checkin"
+          ]
+        }
+      },
+      {
+        "date": "2026-08-06",
+        "route": "北红村 → 龙江第一湾、乌苏里浅滩 → 北极村",
+        "routeOverview": {
+          "directionSummary": "整体向西推进，中途先北上再折返",
+          "stops": [
+            { "label": "漠河梦之圆客栈", "query": "漠河梦之圆客栈", "lat": 53.5078, "lng": 123.4921, "kind": "place" },
+            { "label": "龙江第一湾景区", "query": "龙江第一湾景区", "lat": 53.4385, "lng": 123.1915, "kind": "place" },
+            { "label": "乌苏里浅滩", "query": "乌苏里浅滩", "lat": 53.5633, "lng": 123.1603, "kind": "place" },
+            { "label": "漠河青来酒店（北极村店）", "query": "漠河青来酒店（北极村店）", "lat": 53.4784, "lng": 122.3517, "kind": "place" },
+            { "label": "中国最北邮局", "query": "中国最北邮局", "lat": 53.4815, "lng": 122.3485, "kind": "place" }
+          ]
+        },
+        "weatherLocation": {
+          "displayName": "北极村",
+          "name": "北极村",
+          "countryCode": "CN",
+          "latitude": 53.478,
+          "longitude": 122.352,
+          "source": "manual"
+        },
+        "eventIds": [
+          "d07-drive-beihong-longjiang",
+          "d07-drive-info-beihong-longjiang",
+          "d07-longjiang-wusuli",
+          "d07-hotel-checkin",
+          "d07-north-post-office"
+        ],
+        "brief": {
+          "hotelChanges": [
+            {
+              "eventId": "d07-hotel-checkin",
+              "action": "check-in",
+              "hotelName": "漠河青来酒店（北极村店）",
+              "address": "黑龙江省漠河市北极镇北极村兴安路55号",
+              "note": "2间双床房，含4早。"
+            }
+          ],
+          "keyTransportEventIds": [
+            "d07-drive-beihong-longjiang"
+          ],
+          "importantEventIds": [
+            "d07-hotel-checkin"
+          ]
+        }
+      },
+      {
+        "date": "2026-08-07",
+        "route": "北极村 → 加格达奇",
+        "routeOverview": {
+          "directionSummary": "整体向东南推进",
+          "stops": [
+            { "label": "漠河青来酒店（北极村店）", "query": "漠河青来酒店（北极村店）", "lat": 53.4784, "lng": 122.3517, "kind": "place" },
+            { "label": "汉庭酒店（加格达奇站店）", "query": "汉庭酒店（加格达奇站店）", "lat": 50.4247, "lng": 124.1269, "kind": "place" }
+          ]
+        },
+        "weatherLocation": {
+          "displayName": "加格达奇",
+          "name": "加格达奇",
+          "countryCode": "CN",
+          "latitude": 50.408,
+          "longitude": 124.117,
+          "source": "city-center"
+        },
+        "eventIds": [
+          "d08-drive-arctic-jagdagqi",
+          "d08-drive-info-arctic-jagdagqi",
+          "d08-hotel-checkin",
+          "d10-baggage-reminder"
+        ],
+        "brief": {
+          "hotelChanges": [
+            {
+              "eventId": "d08-hotel-checkin",
+              "action": "check-in",
+              "hotelName": "汉庭酒店（加格达奇站店）",
+              "address": "黑龙江省大兴安岭地区加格达奇区兴安大街19号迎宾大厦",
+              "note": "2间双床，无早。"
+            }
+          ],
+          "keyTransportEventIds": [
+            "d08-drive-arctic-jagdagqi"
+          ],
+          "importantEventIds": [
+            "d08-hotel-checkin",
+            "d10-baggage-reminder"
+          ]
+        }
+      },
+      {
+        "date": "2026-08-08",
+        "route": "加格达奇 → 五大连池",
+        "routeOverview": {
+          "directionSummary": "整体向东南推进",
+          "stops": [
+            { "label": "汉庭酒店（加格达奇站店）", "query": "汉庭酒店（加格达奇站店）", "lat": 50.4247, "lng": 124.1269, "kind": "place" },
+            { "label": "龙门石寨", "query": "龙门石寨", "lat": 48.7224, "lng": 126.0358, "kind": "place" },
+            { "label": "田园温泉酒店（五大连池温泊景区店）", "query": "田园温泉酒店（五大连池风景区温泊景区店）", "lat": 48.6598, "lng": 126.1288, "kind": "place" }
+          ]
+        },
+        "weatherLocation": {
+          "displayName": "五大连池",
+          "name": "五大连池",
+          "countryCode": "CN",
+          "latitude": 48.516,
+          "longitude": 126.197,
+          "source": "city-center"
+        },
+        "eventIds": [
+          "d09-drive-jagdagqi-wudalianchi",
+          "d09-drive-info-jagdagqi-wudalianchi",
+          "d09-longmen-stone-village",
+          "d09-hotel-checkin"
+        ],
+        "brief": {
+          "hotelChanges": [
+            {
+              "eventId": "d09-hotel-checkin",
+              "action": "check-in",
+              "hotelName": "田园温泉酒店（五大连池风景区温泊景区店）",
+              "address": "黑龙江省五大连池市火山路中俄韩旅游购物城旁",
+              "note": "1间双大床房，含2早。"
+            }
+          ],
+          "keyTransportEventIds": [
+            "d09-drive-jagdagqi-wudalianchi"
+          ],
+          "importantEventIds": [
+            "d09-hotel-checkin"
+          ]
+        }
+      },
+      {
+        "date": "2026-08-09",
+        "route": "五大连池 → 哈尔滨",
+        "routeOverview": {
+          "directionSummary": "整体向东南推进，抵达哈尔滨后在市中心短距离移动",
+          "stops": [
+            { "label": "田园温泉酒店（五大连池温泊景区店）", "query": "田园温泉酒店（五大连池风景区温泊景区店）", "lat": 48.6598, "lng": 126.1288, "kind": "place" },
+            { "label": "温泊景区", "query": "温泊景区", "lat": 48.6501, "lng": 126.1218, "kind": "place" },
+            { "label": "哈尔滨中央大街哈布斯堡江景酒店", "query": "哈尔滨中央大街哈布斯堡江景酒店（索菲亚教堂店）", "lat": 45.7763, "lng": 126.6192, "kind": "place" },
+            { "label": "圣索菲亚大教堂", "query": "圣索菲亚大教堂", "lat": 45.7688, "lng": 126.6215, "kind": "place" },
+            { "label": "中央大街", "query": "中央大街", "lat": 45.7714, "lng": 126.6167, "kind": "place" }
+          ]
+        },
+        "weatherLocation": {
+          "displayName": "哈尔滨",
+          "name": "哈尔滨",
+          "countryCode": "CN",
+          "latitude": 45.804,
+          "longitude": 126.535,
+          "source": "city-center"
+        },
+        "eventIds": [
+          "d10-wenbo-scenic",
+          "d10-drive-wudalianchi-harbin",
+          "d10-drive-info-wudalianchi-harbin",
+          "d10-hotel-checkin",
+          "d10-saint-sophia-night",
+          "d10-central-avenue"
+        ],
+        "brief": {
+          "hotelChanges": [
+            {
+              "eventId": "d10-hotel-checkin",
+              "action": "check-in",
+              "hotelName": "哈尔滨中央大街哈布斯堡江景酒店（索菲亚教堂店）",
+              "address": "黑龙江省哈尔滨市道里区通江街道友谊路184号",
+              "note": "1间套房，含3早。"
+            }
+          ],
+          "keyTransportEventIds": [
+            "d10-drive-wudalianchi-harbin"
+          ],
+          "importantEventIds": [
+            "d10-hotel-checkin"
+          ]
+        }
+      },
+      {
+        "date": "2026-08-10",
+        "route": "哈尔滨 → 宁波",
+        "routeOverview": {
+          "directionSummary": "先向西前往机场，再乘机向西南返回宁波",
+          "stops": [
+            { "label": "哈尔滨中央大街哈布斯堡江景酒店", "query": "哈尔滨中央大街哈布斯堡江景酒店（索菲亚教堂店）", "lat": 45.7763, "lng": 126.6192, "kind": "place" },
+            { "label": "哈尔滨太平机场神州租车", "query": "哈尔滨太平机场神州租车服务点", "lat": 45.6237, "lng": 126.2511, "kind": "place" },
+            { "label": "哈尔滨太平国际机场 T2", "query": "哈尔滨太平国际机场 T2", "lat": 45.6234, "lng": 126.2503, "kind": "place" },
+            { "label": "宁波栎社国际机场 T2", "query": "宁波栎社国际机场 T2", "lat": 29.8267, "lng": 121.4619, "kind": "place" }
+          ]
+        },
+        "weatherLocation": {
+          "displayName": "宁波",
+          "name": "宁波",
+          "countryCode": "CN",
+          "latitude": 29.868,
+          "longitude": 121.544,
+          "source": "city-center"
+        },
+        "eventIds": [
+          "d11-car-return",
+          "d11-flight-9c8684"
+        ],
+        "brief": {
+          "hotelChanges": [],
+          "keyTransportEventIds": [
+            "d11-flight-9c8684"
+          ],
+          "importantEventIds": []
+        }
+      }
+    ],
+    "events": [
+      {
+        "id": "d01-flight-mu5650",
+        "date": "2026-07-31",
+        "what": "MU5650：宁波栎社 T2 → 哈尔滨太平 T2",
+        "timeStart": "17:55",
+        "timeEnd": "21:25",
+        "place": "宁波栎社 T2 → 哈尔滨太平 T2",
+        "address": null,
+        "note": "",
+        "category": "transport",
+        "important": true,
+        "transportCard": {
+          "mode": "flight",
+          "from": "宁波栎社 T2",
+          "to": "哈尔滨太平 T2",
+          "service": "MU5650",
+          "segments": [
+            {
+              "departure": "17:55",
+              "arrival": "21:25",
+              "detail": ""
+            }
+          ],
+          "terminalNote": null
+        },
+        "mapTargets": [],
+        "allDay": false
+      },
+      {
+        "id": "d01-hotel-checkin",
+        "date": "2026-07-31",
+        "what": "入住哈尔滨机场迈凯伦酒店（太平国际机场 T2 航站楼 P2 店）",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "哈尔滨机场迈凯伦酒店（太平国际机场 T2 航站楼 P2 店）",
+        "address": "黑龙江省哈尔滨市道里区太平国际机场空港一路1号",
+        "note": "1间家庭房，含2早。",
+        "category": "hotel",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "哈尔滨机场迈凯伦酒店（太平国际机场 T2 航站楼 P2 店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d02-car-pickup",
+        "date": "2026-08-01",
+        "what": "取车：哈尔滨太平机场神州租车服务点",
+        "timeStart": "09:00",
+        "timeEnd": null,
+        "place": "哈尔滨太平机场神州租车服务点",
+        "address": null,
+        "note": "",
+        "category": "other",
+        "important": false,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "哈尔滨太平机场神州租车服务点",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d02-drive-harbin-yichun",
+        "date": "2026-08-01",
+        "what": "哈尔滨 → 伊春",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "哈尔滨太平机场神州租车服务点 → 伊春森氧假日酒店",
+        "address": null,
+        "note": "354 km｜约3小时30分｜G1111 鹤哈高速",
+        "category": "transport",
+        "important": false,
+        "transportCard": {
+          "mode": "drive",
+          "from": "哈尔滨太平机场神州租车服务点",
+          "to": "伊春森氧假日酒店",
+          "service": null,
+          "segments": [
+            {
+              "departure": "",
+              "arrival": "",
+              "detail": "354 km｜约3小时30分｜G1111 鹤哈高速"
+            }
+          ],
+          "terminalNote": null
+        },
+        "mapTargets": [
+          {
+            "query": "伊春森氧假日酒店",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d02-drive-info-harbin-yichun",
+        "date": "2026-08-01",
+        "what": "354 km｜约3小时30分｜G1111 鹤哈高速",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": null,
+        "address": null,
+        "note": "",
+        "category": "reminder",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [],
+        "allDay": true
+      },
+      {
+        "id": "d02-jinshan-deer-park",
+        "date": "2026-08-01",
+        "what": "游览金山鹿苑",
+        "timeStart": "14:30",
+        "timeEnd": "15:50",
+        "place": "金山鹿苑",
+        "address": null,
+        "note": "下午4点鹿回家，安排亲子互动与拍照。",
+        "category": "sightseeing",
+        "important": false,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "金山鹿苑",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d02-hotel-checkin",
+        "date": "2026-08-01",
+        "what": "入住伊春森氧假日酒店",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "伊春森氧假日酒店",
+        "address": "黑龙江省伊春市伊美区青山西大街25号",
+        "note": "1间家庭房，含1早（儿童免费）。",
+        "category": "hotel",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "伊春森氧假日酒店",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d03-drive-tangwanghe",
+        "date": "2026-08-02",
+        "what": "伊春 → 汤旺河林海奇石景区 → 伊春",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "伊春森氧假日酒店 → 汤旺河林海奇石景区 → 伊春森氧假日酒店",
+        "address": null,
+        "note": "伊春 → 汤旺河：122 km｜约1小时40分｜G222 国道；游览后返回伊春。",
+        "category": "transport",
+        "important": false,
+        "transportCard": {
+          "mode": "drive",
+          "from": "伊春森氧假日酒店",
+          "to": "伊春森氧假日酒店",
+          "service": null,
+          "segments": [
+            {
+              "departure": "",
+              "arrival": "",
+              "detail": "伊春 → 汤旺河：122 km｜约1小时40分｜G222 国道"
+            }
+          ],
+          "terminalNote": null
+        },
+        "mapTargets": [
+          {
+            "query": "伊春森氧假日酒店",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d03-drive-info-tangwanghe",
+        "date": "2026-08-02",
+        "what": "伊春 → 汤旺河：122 km｜约1小时40分｜G222 国道",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": null,
+        "address": null,
+        "note": "",
+        "category": "reminder",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [],
+        "allDay": true
+      },
+      {
+        "id": "d03-tangwanghe-scenic",
+        "date": "2026-08-02",
+        "what": "游览汤旺河林海奇石景区",
+        "timeStart": "10:10",
+        "timeEnd": "13:40",
+        "place": "汤旺河林海奇石景区",
+        "address": null,
+        "note": "约3小时30分游览。",
+        "category": "sightseeing",
+        "important": false,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "汤旺河林海奇石景区",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d03-hotel-stay",
+        "date": "2026-08-02",
+        "what": "续住伊春森氧假日酒店",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "伊春森氧假日酒店",
+        "address": "黑龙江省伊春市伊美区青山西大街25号",
+        "note": "1间家庭房，含1早（儿童免费）。",
+        "category": "hotel",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "伊春森氧假日酒店",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d04-drive-yichun-hulunbuir",
+        "date": "2026-08-03",
+        "what": "伊春 → 呼伦贝尔市",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "伊春森氧假日酒店 → 云酒店（呼伦贝尔海拉尔店）",
+        "address": null,
+        "note": "931 km｜约9小时18分",
+        "category": "transport",
+        "important": false,
+        "transportCard": {
+          "mode": "drive",
+          "from": "伊春森氧假日酒店",
+          "to": "云酒店（呼伦贝尔海拉尔店）",
+          "service": null,
+          "segments": [
+            {
+              "departure": "",
+              "arrival": "",
+              "detail": "931 km｜约9小时18分"
+            }
+          ],
+          "terminalNote": null
+        },
+        "mapTargets": [
+          {
+            "query": "云酒店（呼伦贝尔海拉尔店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": true
+      },
+      {
+        "id": "d04-drive-info-yichun-hulunbuir",
+        "date": "2026-08-03",
+        "what": "931 km｜约9小时18分",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": null,
+        "address": null,
+        "note": "",
+        "category": "reminder",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [],
+        "allDay": true
+      },
+      {
+        "id": "d04-hotel-checkin",
+        "date": "2026-08-03",
+        "what": "入住云酒店（呼伦贝尔海拉尔店）",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "云酒店（呼伦贝尔海拉尔店）",
+        "address": "内蒙古自治区呼伦贝尔市海拉尔区阿里河路26号",
+        "note": "2间双床房，含4早。",
+        "category": "hotel",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "云酒店（呼伦贝尔海拉尔店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d05-hulunbuir-grassland",
+        "date": "2026-08-04",
+        "what": "游览呼伦贝尔大草原",
+        "timeStart": "08:30",
+        "timeEnd": "11:30",
+        "place": "呼伦贝尔大草原",
+        "address": null,
+        "note": "草原观景、拍照与机动停靠。",
+        "category": "sightseeing",
+        "important": false,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "呼伦贝尔大草原",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d05-drive-grassland-genhe",
+        "date": "2026-08-04",
+        "what": "呼伦贝尔大草原 → 根河",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "云酒店（呼伦贝尔海拉尔店） → 呼伦贝尔大草原 → 呼伦贝尔根河市悦·轻居酒店（敖鲁古雅路店）",
+        "address": null,
+        "note": "呼伦贝尔大草原 → 根河：257 km｜约3小时",
+        "category": "transport",
+        "important": false,
+        "transportCard": {
+          "mode": "drive",
+          "from": "云酒店（呼伦贝尔海拉尔店）",
+          "to": "呼伦贝尔根河市悦·轻居酒店（敖鲁古雅路店）",
+          "service": null,
+          "segments": [
+            {
+              "departure": "",
+              "arrival": "",
+              "detail": "呼伦贝尔大草原 → 根河：257 km｜约3小时"
+            }
+          ],
+          "terminalNote": null
+        },
+        "mapTargets": [
+          {
+            "query": "呼伦贝尔根河市悦·轻居酒店（敖鲁古雅路店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d05-drive-info-grassland-genhe",
+        "date": "2026-08-04",
+        "what": "呼伦贝尔大草原 → 根河：257 km｜约3小时",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": null,
+        "address": null,
+        "note": "",
+        "category": "reminder",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [],
+        "allDay": true
+      },
+      {
+        "id": "d05-hotel-checkin",
+        "date": "2026-08-04",
+        "what": "入住呼伦贝尔根河市悦·轻居酒店（敖鲁古雅路店）",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "呼伦贝尔根河市悦·轻居酒店（敖鲁古雅路店）",
+        "address": "内蒙古自治区根河市花园街888号",
+        "note": "1间大床、1间双床，含4早。",
+        "category": "hotel",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "呼伦贝尔根河市悦·轻居酒店（敖鲁古雅路店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d06-drive-genhe-beihong",
+        "date": "2026-08-05",
+        "what": "根河 → 北红村",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "呼伦贝尔根河市悦·轻居酒店（敖鲁古雅路店） → 漠河梦之圆客栈",
+        "address": null,
+        "note": "474 km｜约6小时",
+        "category": "transport",
+        "important": false,
+        "transportCard": {
+          "mode": "drive",
+          "from": "呼伦贝尔根河市悦·轻居酒店（敖鲁古雅路店）",
+          "to": "漠河梦之圆客栈",
+          "service": null,
+          "segments": [
+            {
+              "departure": "",
+              "arrival": "",
+              "detail": "474 km｜约6小时"
+            }
+          ],
+          "terminalNote": null
+        },
+        "mapTargets": [
+          {
+            "query": "漠河梦之圆客栈",
+            "provider": "amap"
+          }
+        ],
+        "allDay": true
+      },
+      {
+        "id": "d06-drive-info-genhe-beihong",
+        "date": "2026-08-05",
+        "what": "474 km｜约6小时",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": null,
+        "address": null,
+        "note": "",
+        "category": "reminder",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [],
+        "allDay": true
+      },
+      {
+        "id": "d06-hotel-checkin",
+        "date": "2026-08-05",
+        "what": "入住漠河梦之圆客栈",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "漠河梦之圆客栈",
+        "address": "黑龙江省漠河市北极镇北红村主街东头南侧",
+        "note": "2间大炕房，含4早。",
+        "category": "hotel",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "漠河梦之圆客栈",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d07-drive-beihong-longjiang",
+        "date": "2026-08-06",
+        "what": "北红村 → 龙江第一湾、乌苏里浅滩 → 北极村",
+        "timeStart": "09:00",
+        "timeEnd": null,
+        "place": "漠河梦之圆客栈 → 龙江第一湾、乌苏里浅滩 → 漠河青来酒店（北极村店）",
+        "address": null,
+        "note": "143 km｜约2小时",
+        "category": "transport",
+        "important": false,
+        "transportCard": {
+          "mode": "drive",
+          "from": "漠河梦之圆客栈",
+          "to": "漠河青来酒店（北极村店）",
+          "service": null,
+          "segments": [
+            {
+              "departure": "09:00",
+              "arrival": "",
+              "detail": "143 km｜约2小时｜途经龙江第一湾、乌苏里浅滩"
+            }
+          ],
+          "terminalNote": null
+        },
+        "mapTargets": [
+          {
+            "query": "漠河青来酒店（北极村店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d07-drive-info-beihong-longjiang",
+        "date": "2026-08-06",
+        "what": "143 km｜约2小时｜途经龙江第一湾、乌苏里浅滩",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": null,
+        "address": null,
+        "note": "",
+        "category": "reminder",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [],
+        "allDay": true
+      },
+      {
+        "id": "d07-longjiang-wusuli",
+        "date": "2026-08-06",
+        "what": "游览龙江第一湾与乌苏里浅滩",
+        "timeStart": "10:30",
+        "timeEnd": "14:00",
+        "place": "龙江第一湾景区、乌苏里浅滩",
+        "address": null,
+        "note": "景交、登高观景、拍照与午餐；14:00左右前往北极村。",
+        "category": "sightseeing",
+        "important": false,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "龙江第一湾景区",
+            "provider": "amap"
+          },
+          {
+            "query": "乌苏里浅滩",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d07-hotel-checkin",
+        "date": "2026-08-06",
+        "what": "入住漠河青来酒店（北极村店）",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "漠河青来酒店（北极村店）",
+        "address": "黑龙江省漠河市北极镇北极村兴安路55号",
+        "note": "2间双床房，含4早。",
+        "category": "hotel",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "漠河青来酒店（北极村店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d07-north-post-office",
+        "date": "2026-08-06",
+        "what": "打卡中国最北邮局",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "中国最北邮局",
+        "address": null,
+        "note": "抵达北极村后打卡。",
+        "category": "sightseeing",
+        "important": false,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "中国最北邮局",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d08-drive-arctic-jagdagqi",
+        "date": "2026-08-07",
+        "what": "北极村 → 加格达奇",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "漠河青来酒店（北极村店） → 汉庭酒店（加格达奇站店）",
+        "address": null,
+        "note": "504 km｜约7小时30分",
+        "category": "transport",
+        "important": false,
+        "transportCard": {
+          "mode": "drive",
+          "from": "漠河青来酒店（北极村店）",
+          "to": "汉庭酒店（加格达奇站店）",
+          "service": null,
+          "segments": [
+            {
+              "departure": "",
+              "arrival": "",
+              "detail": "504 km｜约7小时30分"
+            }
+          ],
+          "terminalNote": null
+        },
+        "mapTargets": [
+          {
+            "query": "汉庭酒店（加格达奇站店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": true
+      },
+      {
+        "id": "d08-drive-info-arctic-jagdagqi",
+        "date": "2026-08-07",
+        "what": "504 km｜约7小时30分",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": null,
+        "address": null,
+        "note": "",
+        "category": "reminder",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [],
+        "allDay": true
+      },
+      {
+        "id": "d08-hotel-checkin",
+        "date": "2026-08-07",
+        "what": "入住汉庭酒店（加格达奇站店）",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "汉庭酒店（加格达奇站店）",
+        "address": "黑龙江省大兴安岭地区加格达奇区兴安大街19号迎宾大厦",
+        "note": "2间双床，无早。",
+        "category": "hotel",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "汉庭酒店（加格达奇站店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d09-drive-jagdagqi-wudalianchi",
+        "date": "2026-08-08",
+        "what": "加格达奇 → 五大连池",
+        "timeStart": "08:00",
+        "timeEnd": "11:54",
+        "place": "汉庭酒店（加格达奇站店） → 田园温泉酒店（五大连池风景区温泊景区店）",
+        "address": null,
+        "note": "314 km｜约3小时54分",
+        "category": "transport",
+        "important": false,
+        "transportCard": {
+          "mode": "drive",
+          "from": "汉庭酒店（加格达奇站店）",
+          "to": "田园温泉酒店（五大连池风景区温泊景区店）",
+          "service": null,
+          "segments": [
+            {
+              "departure": "08:00",
+              "arrival": "11:54",
+              "detail": "314 km｜约3小时54分"
+            }
+          ],
+          "terminalNote": null
+        },
+        "mapTargets": [
+          {
+            "query": "田园温泉酒店（五大连池风景区温泊景区店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d09-drive-info-jagdagqi-wudalianchi",
+        "date": "2026-08-08",
+        "what": "314 km｜约3小时54分",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": null,
+        "address": null,
+        "note": "",
+        "category": "reminder",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [],
+        "allDay": true
+      },
+      {
+        "id": "d09-longmen-stone-village",
+        "date": "2026-08-08",
+        "what": "游览龙门石寨",
+        "timeStart": "13:00",
+        "timeEnd": "16:30",
+        "place": "龙门石寨",
+        "address": null,
+        "note": "约3小时30分游览。",
+        "category": "sightseeing",
+        "important": false,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "龙门石寨",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d09-hotel-checkin",
+        "date": "2026-08-08",
+        "what": "入住田园温泉酒店（五大连池风景区温泊景区店）",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "田园温泉酒店（五大连池风景区温泊景区店）",
+        "address": "黑龙江省五大连池市火山路中俄韩旅游购物城旁",
+        "note": "1间双大床房，含2早。",
+        "category": "hotel",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "田园温泉酒店（五大连池风景区温泊景区店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d10-wenbo-scenic",
+        "date": "2026-08-09",
+        "what": "游览温泊景区",
+        "timeStart": "08:00",
+        "timeEnd": "10:30",
+        "place": "温泊景区",
+        "address": null,
+        "note": "游船、步道与拍照。",
+        "category": "sightseeing",
+        "important": false,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "温泊景区",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d10-drive-wudalianchi-harbin",
+        "date": "2026-08-09",
+        "what": "五大连池 → 哈尔滨",
+        "timeStart": "12:00",
+        "timeEnd": "16:00",
+        "place": "田园温泉酒店（五大连池风景区温泊景区店） → 哈尔滨中央大街哈布斯堡江景酒店（索菲亚教堂店）",
+        "address": null,
+        "note": "383 km｜约4小时",
+        "category": "transport",
+        "important": false,
+        "transportCard": {
+          "mode": "drive",
+          "from": "田园温泉酒店（五大连池风景区温泊景区店）",
+          "to": "哈尔滨中央大街哈布斯堡江景酒店（索菲亚教堂店）",
+          "service": null,
+          "segments": [
+            {
+              "departure": "12:00",
+              "arrival": "16:00",
+              "detail": "383 km｜约4小时"
+            }
+          ],
+          "terminalNote": null
+        },
+        "mapTargets": [
+          {
+            "query": "哈尔滨中央大街哈布斯堡江景酒店（索菲亚教堂店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d10-drive-info-wudalianchi-harbin",
+        "date": "2026-08-09",
+        "what": "383 km｜约4小时",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": null,
+        "address": null,
+        "note": "",
+        "category": "reminder",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [],
+        "allDay": true
+      },
+      {
+        "id": "d10-saint-sophia-night",
+        "date": "2026-08-09",
+        "what": "圣索菲亚大教堂夜景（外观）",
+        "timeStart": "18:30",
+        "timeEnd": "19:30",
+        "place": "圣索菲亚大教堂",
+        "address": null,
+        "note": "外观与广场拍照。",
+        "category": "sightseeing",
+        "important": false,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "圣索菲亚大教堂",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d10-central-avenue",
+        "date": "2026-08-09",
+        "what": "中央大街夜游",
+        "timeStart": "20:00",
+        "timeEnd": "22:00",
+        "place": "中央大街",
+        "address": null,
+        "note": "晚间步行游览。",
+        "category": "sightseeing",
+        "important": false,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "中央大街",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d10-hotel-checkin",
+        "date": "2026-08-09",
+        "what": "入住哈尔滨中央大街哈布斯堡江景酒店（索菲亚教堂店）",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "哈尔滨中央大街哈布斯堡江景酒店（索菲亚教堂店）",
+        "address": "黑龙江省哈尔滨市道里区通江街道友谊路184号",
+        "note": "1间套房，含3早。",
+        "category": "hotel",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "哈尔滨中央大街哈布斯堡江景酒店（索菲亚教堂店）",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d10-baggage-reminder",
+        "date": "2026-08-07",
+        "what": "购买春秋航空 9C8684 行李额",
+        "timeStart": null,
+        "timeEnd": null,
+        "place": "行程提醒",
+        "address": null,
+        "note": "最晚购买时间：2026-08-07 12:45。",
+        "category": "reminder",
+        "important": true,
+        "transportCard": null,
+        "mapTargets": [],
+        "allDay": false
+      },
+      {
+        "id": "d11-car-return",
+        "date": "2026-08-10",
+        "what": "还车：哈尔滨太平机场神州租车服务点",
+        "timeStart": "10:00",
+        "timeEnd": null,
+        "place": "哈尔滨太平机场神州租车服务点",
+        "address": null,
+        "note": "",
+        "category": "other",
+        "important": false,
+        "transportCard": null,
+        "mapTargets": [
+          {
+            "query": "哈尔滨太平机场神州租车服务点",
+            "provider": "amap"
+          }
+        ],
+        "allDay": false
+      },
+      {
+        "id": "d11-flight-9c8684",
+        "date": "2026-08-10",
+        "what": "9C8684：哈尔滨太平 T2 → 宁波栎社 T2",
+        "timeStart": "12:45",
+        "timeEnd": "15:55",
+        "place": "哈尔滨太平 T2 → 宁波栎社 T2",
+        "address": null,
+        "note": "",
+        "category": "transport",
+        "important": true,
+        "transportCard": {
+          "mode": "flight",
+          "from": "哈尔滨太平 T2",
+          "to": "宁波栎社 T2",
+          "service": "9C8684",
+          "segments": [
+            {
+              "departure": "12:45",
+              "arrival": "15:55",
+              "detail": ""
+            }
+          ],
+          "terminalNote": null
+        },
+        "mapTargets": [],
+        "allDay": false
+      }
+    ]
+  },
+  "reviewNeeded": {
+    "tripId": "heilongjiang-roadtrip-2026",
+    "items": [
+      {
+        "id": "review-airport-hotel-pickup",
+        "title": "确认哈尔滨机场迈凯伦酒店是否提供机场接机",
+        "dueDate": "2026-07-31",
+        "dueTime": null,
+        "category": "hotel",
+        "important": true,
+        "note": "确认接机服务、集合位置与联系方式。"
+      },
+      {
+        "id": "review-jinshan-ticket",
+        "title": "金山鹿苑：确认入园时间并购票",
+        "dueDate": "2026-08-01",
+        "dueTime": "14:30",
+        "category": "ticket",
+        "important": true,
+        "note": "确认当日入园时间。"
+      },
+      {
+        "id": "review-tangwanghe-ticket",
+        "title": "汤旺河林海奇石景区：购票并确认观光车安排",
+        "dueDate": "2026-08-02",
+        "dueTime": null,
+        "category": "ticket",
+        "important": true,
+        "note": "确认门票与观光车安排。"
+      },
+      {
+        "id": "review-longjiang-wusuli",
+        "title": "龙江第一湾、乌苏里浅滩：确认套票、景交车与末班换乘",
+        "dueDate": "2026-08-05",
+        "dueTime": null,
+        "category": "ticket",
+        "important": true,
+        "note": "确认售票、停车、景交车与换乘时间。"
+      },
+      {
+        "id": "review-arctic-village-car",
+        "title": "北极村：向酒店确认私家车进村与停车安排",
+        "dueDate": "2026-08-05",
+        "dueTime": null,
+        "category": "transport",
+        "important": true,
+        "note": "确认入村通行方式、停车位置、车牌报备与酒店接驳安排。"
+      },
+      {
+        "id": "review-longmen-ticket",
+        "title": "龙门石寨：购票并确认入园安排",
+        "dueDate": "2026-08-08",
+        "dueTime": "12:00",
+        "category": "ticket",
+        "important": true,
+        "note": "中午前完成购票或确认入园安排。"
+      },
+      {
+        "id": "review-wenbo-ticket",
+        "title": "温泊景区：购票并确认游船安排",
+        "dueDate": "2026-08-08",
+        "dueTime": null,
+        "category": "ticket",
+        "important": true,
+        "note": "确认8月9日上午的入园与游船安排。"
+      },
+      {
+        "id": "review-spring-baggage",
+        "title": "购买春秋航空 9C8684 行李额",
+        "dueDate": "2026-08-07",
+        "dueTime": "12:45",
+        "category": "flight",
+        "important": true,
+        "note": "最晚购买时间：2026-08-07 12:45。"
+      }
+    ]
+  },
+  "localData": null
+}

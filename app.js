@@ -1,14 +1,27 @@
 "use strict";
 
-const APP_VERSION = "20260726-todo-v3";
+const APP_VERSION = "20260811-weather-v7";
 const DB_NAME = "travel-plan-starter";
 const DB_VERSION = 7;
 const DEFAULT_TRIP_ID = "";
 const NOTE_SAVE_DELAY = 500;
 const WEATHER_CACHE_PREFIX = "weather:";
-const WEATHER_FORECAST_DAYS = 16;
 const WEATHER_HISTORY_YEARS = 10;
 const WEATHER_HISTORY_WINDOW_DAYS = 3;
+const WEATHER_REQUEST_TIMEOUT = 12000;
+const WEATHER_FAILURE_RETRY_MS = 30 * 60 * 1000;
+const WEATHER_CACHE_TTLS = {
+  today: 30 * 60 * 1000,
+  near: 60 * 60 * 1000,
+  medium: 3 * 60 * 60 * 1000,
+  ensemble: 6 * 60 * 60 * 1000,
+  historical: 7 * 24 * 60 * 60 * 1000,
+};
+
+const weatherRequestTokens = new WeakMap();
+const weatherFailures = new Map();
+let weatherRequestSequence = 0;
+let weatherRefreshTriggersBound = false;
 
 const WEATHER_LOCATIONS_BY_DATE = {};
 
@@ -973,6 +986,46 @@ function weatherCacheKey(stage, location, date) {
   return `${WEATHER_CACHE_PREFIX}${countryCode}:${name}:${date}:${stage}`;
 }
 
+class WeatherUpdateError extends Error {
+  constructor(statusText, message = statusText) {
+    super(message);
+    this.name = "WeatherUpdateError";
+    this.statusText = statusText;
+  }
+}
+
+function weatherSourceUnavailableText(sourceType) {
+  if (sourceType === "ensemble") return "集合暂无";
+  if (sourceType === "ecmwf") return "ECMWF暂无";
+  if (sourceType === "best-match") return "当地源暂无";
+  return "更新失败";
+}
+
+function weatherErrorText(error) {
+  if (!navigator.onLine) return "离线";
+  if (error?.statusText) return error.statusText;
+  if (error?.name === "AbortError") return "连接超时";
+  if (error?.httpStatus === 429) return "请求频繁";
+  if (Number(error?.httpStatus) >= 500) return "服务异常";
+  return "更新失败";
+}
+
+async function fetchWeatherJson(url) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), WEATHER_REQUEST_TIMEOUT);
+  try {
+    const response = await fetch(url, { cache: "no-store", signal: controller.signal });
+    if (!response.ok) {
+      const error = new Error(`天气读取失败：${response.status}`);
+      error.httpStatus = response.status;
+      throw error;
+    }
+    return await response.json();
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 function weatherDescription(code) {
   return WEATHER_CODE_TEXT[Number(code)] || "天气待确认";
 }
@@ -1012,15 +1065,13 @@ function precipitationProbabilityLabel(value) {
   return "降水概率高";
 }
 
-function windStrengthLabel(value) {
+function historicalWindStrengthLabel(value) {
   const speed = Number(value);
   if (!Number.isFinite(speed)) return "暂无";
-  if (speed < 2) return "无风";
-  if (speed < 12) return "微风";
-  if (speed < 20) return "和风";
-  if (speed < 29) return "较强风";
-  if (speed < 39) return "大风";
-  if (speed < 50) return "强风";
+  if (speed < 5) return "无风";
+  if (speed < 20) return "微风";
+  if (speed < 30) return "阵风";
+  if (speed < 40) return "大风";
   return "狂风";
 }
 
@@ -1042,18 +1093,30 @@ function weatherDayOffset(dateString) {
   return Math.round((Date.UTC(year, month - 1, day) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
 }
 
-function isForecastDate(day) {
-  const offset = weatherDayOffset(day.date);
-  return offset >= 0 && offset < WEATHER_FORECAST_DAYS;
-}
-
 function hasWeatherCoordinates(location) {
   return hasWeatherNumber(location?.latitude) && hasWeatherNumber(location?.longitude);
 }
 
-function weatherCacheIsFresh(data) {
-  if (!data?.updatedAt) return false;
-  return new Date(data.updatedAt).toDateString() === new Date().toDateString();
+function weatherSourcesForDay(day) {
+  const offset = weatherDayOffset(day.date);
+  if (offset < 0 || offset > 15) return ["historical"];
+  if (offset <= 3) return ["best-match", "ecmwf", "historical"];
+  if (offset <= 10) return ["ecmwf", "best-match", "historical"];
+  return ["ensemble", "ecmwf", "best-match", "historical"];
+}
+
+function weatherCacheTtl(day, sourceType) {
+  if (sourceType === "historical") return WEATHER_CACHE_TTLS.historical;
+  const offset = weatherDayOffset(day.date);
+  if (offset === 0) return WEATHER_CACHE_TTLS.today;
+  if (offset >= 1 && offset <= 3) return WEATHER_CACHE_TTLS.near;
+  if (offset >= 4 && offset <= 10) return WEATHER_CACHE_TTLS.medium;
+  return WEATHER_CACHE_TTLS.ensemble;
+}
+
+function weatherCacheIsFresh(data, day, sourceType = data?.sourceType) {
+  const updatedAt = new Date(data?.updatedAt).getTime();
+  return Number.isFinite(updatedAt) && Date.now() - updatedAt < weatherCacheTtl(day, sourceType);
 }
 
 function formatWeatherUpdatedAt(value) {
@@ -1070,40 +1133,62 @@ function hasWeatherNumber(value) {
   return value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value));
 }
 
-function normalizeWeatherPayload(day, location, payload) {
+function weatherCoreComplete(data) {
+  return Boolean(data && hasWeatherNumber(data.max) && hasWeatherNumber(data.min));
+}
+
+function normalizeWeatherPayload(day, location, payload, sourceType) {
   const daily = payload.daily || {};
   const index = Array.isArray(daily.time) ? daily.time.indexOf(day.date) : -1;
   if (index < 0) return null;
-  return {
+  const normalized = {
     type: "forecast",
     date: day.date,
     city: weatherLocationLabel(location),
+    latitude: Number(location.latitude),
+    longitude: Number(location.longitude),
     max: daily.temperature_2m_max?.[index],
     min: daily.temperature_2m_min?.[index],
     rain: daily.precipitation_probability_max?.[index],
     precipitation: daily.precipitation_sum?.[index],
     wind: daily.wind_speed_10m_max?.[index],
+    uv: daily.uv_index_max?.[index],
     code: daily.weather_code?.[index],
     description: weatherDescription(daily.weather_code?.[index]),
     updatedAt: new Date().toISOString(),
     source: "online",
+    sourceType,
   };
+  return weatherCoreComplete(normalized) ? normalized : null;
 }
 
-async function fetchWeather(day, location) {
+async function fetchForecastWeather(day, location, sourceType) {
+  const endpoints = {
+    "best-match": "https://api.open-meteo.com/v1/forecast",
+    ecmwf: "https://api.open-meteo.com/v1/ecmwf",
+    ensemble: "https://ensemble-api.open-meteo.com/v1/ensemble",
+  };
   const params = new URLSearchParams({
     latitude: String(location.latitude),
     longitude: String(location.longitude),
-    daily: "temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weather_code,wind_speed_10m_max",
-    forecast_days: String(WEATHER_FORECAST_DAYS),
+    daily: "temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weather_code,wind_speed_10m_max,uv_index_max",
+    start_date: day.date,
+    end_date: day.date,
     timezone: "auto",
   });
-  const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, {
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`天气读取失败：${response.status}`);
-  const payload = await response.json();
-  return normalizeWeatherPayload(day, location, payload);
+  if (sourceType === "ensemble") params.set("models", "ecmwf_ifs025_ensemble_mean");
+  const payload = await fetchWeatherJson(`${endpoints[sourceType]}?${params.toString()}`);
+  const normalized = normalizeWeatherPayload(day, location, payload, sourceType);
+  if (!normalized) throw new WeatherUpdateError(weatherSourceUnavailableText(sourceType));
+  if (sourceType !== "ensemble" || (hasWeatherNumber(normalized.rain) && hasWeatherNumber(normalized.uv))) return normalized;
+  try {
+    const supplement = await fetchForecastWeather(day, location, "best-match");
+    if (!hasWeatherNumber(normalized.rain) && hasWeatherNumber(supplement.rain)) normalized.rain = supplement.rain;
+    if (!hasWeatherNumber(normalized.uv) && hasWeatherNumber(supplement.uv)) normalized.uv = supplement.uv;
+  } catch (error) {
+    console.warn("集合预报补充数据失败", error);
+  }
+  return normalized;
 }
 
 function weatherLocationForDay(day) {
@@ -1175,7 +1260,7 @@ function dateAtYear(dateString, year, offset = 0) {
 }
 
 function historyWindow(day) {
-  const lastYear = Math.min(new Date().getFullYear() - 1, Number(day.date.slice(0, 4)) - 1);
+  const lastYear = new Date().getFullYear() - 1;
   const years = Array.from({ length: WEATHER_HISTORY_YEARS }, (_, index) => lastYear - index).filter((year) => year >= 1940);
   const dates = new Set(years.flatMap((year) => Array.from({ length: WEATHER_HISTORY_WINDOW_DAYS * 2 + 1 }, (_, index) => dateAtYear(day.date, year, index - WEATHER_HISTORY_WINDOW_DAYS))));
   const sample = Array.from(dates).sort();
@@ -1212,23 +1297,41 @@ function summarizeHistory(day, location, payload) {
   const daily = payload.daily || {};
   const rows = (daily.time || []).map((date, index) => ({
     date,
-    max: Number(daily.temperature_2m_max?.[index]),
-    min: Number(daily.temperature_2m_min?.[index]),
-    precipitation: Number(daily.precipitation_sum?.[index]),
-    wind: Number(daily.wind_speed_10m_max?.[index]),
-  })).filter((row) => window.dates.has(row.date) && Number.isFinite(row.max) && Number.isFinite(row.min) && Number.isFinite(row.precipitation) && Number.isFinite(row.wind));
-  if (rows.length < 35) return null;
-  const highs = rows.map((row) => row.max);
-  const lows = rows.map((row) => row.min);
-  const precipitation = rows.map((row) => row.precipitation);
-  const winds = rows.map((row) => row.wind);
+    max: daily.temperature_2m_max?.[index],
+    min: daily.temperature_2m_min?.[index],
+    precipitation: daily.precipitation_sum?.[index],
+    wind: daily.wind_speed_10m_max?.[index],
+  })).filter((row) => window.dates.has(row.date) && hasWeatherNumber(row.max) && hasWeatherNumber(row.min) && hasWeatherNumber(row.precipitation) && hasWeatherNumber(row.wind))
+    .map((row) => ({
+      ...row,
+      max: Number(row.max),
+      min: Number(row.min),
+      precipitation: Number(row.precipitation),
+      wind: Number(row.wind),
+    }));
+  const rowsByYear = rows.reduce((groups, row) => {
+    const year = row.date.slice(0, 4);
+    if (!groups.has(year)) groups.set(year, []);
+    groups.get(year).push(row);
+    return groups;
+  }, new Map());
+  const validYears = Array.from(rowsByYear.values()).filter((yearRows) => yearRows.length >= 4);
+  if (validYears.length < 5) return null;
+  const validRows = validYears.flat();
+  const highs = validRows.map((row) => row.max);
+  const lows = validRows.map((row) => row.min);
+  const precipitation = validRows.map((row) => row.precipitation);
+  const winds = validRows.map((row) => row.wind);
   const [highLow, highHigh] = commonRange(highs);
   const [lowLow, lowHigh] = commonRange(lows);
-  const rainRatio = rows.filter((row) => row.precipitation >= 0.1).length / rows.length;
+  const rainRatio = validRows.filter((row) => row.precipitation >= 0.1).length / validRows.length;
   const advice = historyAdvice({ avgHigh: average(highs), avgLow: average(lows), rainRatio });
   return {
     type: "historical",
+    date: day.date,
     city: weatherLocationLabel(location),
+    latitude: Number(location.latitude),
+    longitude: Number(location.longitude),
     max: average(highs),
     min: average(lows),
     highRange: [highLow, highHigh],
@@ -1242,6 +1345,7 @@ function summarizeHistory(day, location, payload) {
     packingHint: advice.packingHint,
     updatedAt: new Date().toISOString(),
     source: "online",
+    sourceType: "historical",
   };
 }
 
@@ -1253,22 +1357,107 @@ async function fetchHistoricalWeather(day, location) {
     start_date: window.start,
     end_date: window.end,
     daily: "temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max",
+    models: "era5",
     timezone: "auto",
   });
-  const response = await fetch(`https://archive-api.open-meteo.com/v1/archive?${params.toString()}`, { cache: "no-store" });
-  if (!response.ok) throw new Error(`历史天气读取失败：${response.status}`);
-  return summarizeHistory(day, location, await response.json());
+  const result = summarizeHistory(
+    day,
+    location,
+    await fetchWeatherJson(`https://archive-api.open-meteo.com/v1/archive?${params.toString()}`)
+  );
+  if (!result) throw new WeatherUpdateError("更新失败", "历史同期有效年份不足");
+  return result;
 }
 
 function pendingWeather(location, description = "缺少天气城市") {
   return {
     type: "pending",
     city: weatherLocationLabel(location) || "天气城市待确认",
+    latitude: hasWeatherCoordinates(location) ? Number(location.latitude) : undefined,
+    longitude: hasWeatherCoordinates(location) ? Number(location.longitude) : undefined,
     description,
   };
 }
 
-function renderWeatherContent(container, data, iconSet = "static") {
+function weatherSourceTypeFromCache(key, data) {
+  if (["best-match", "ecmwf", "ensemble", "historical"].includes(data?.sourceType)) return data.sourceType;
+  if (String(key).endsWith(":historical") || data?.type === "historical") return "historical";
+  if (String(key).endsWith(":ecmwf")) return "ecmwf";
+  if (String(key).endsWith(":ensemble")) return "ensemble";
+  return "best-match";
+}
+
+function weatherCacheEntry(location, day, sourceType) {
+  const key = weatherCacheKey(sourceType, location, day.date);
+  const data = state.weatherCache.get(key);
+  return weatherCoreComplete(data) ? { key, data, sourceType } : null;
+}
+
+function bestWeatherCache(location, day) {
+  const preferred = weatherSourcesForDay(day);
+  const sourceOrder = [...new Set([...preferred, "ensemble", "ecmwf", "best-match", "historical"])];
+  const entries = sourceOrder.map((sourceType) => weatherCacheEntry(location, day, sourceType)).filter(Boolean);
+  const legacyStages = ["forecast", "historical"];
+  legacyStages.forEach((stage) => {
+    const key = weatherCacheKey(stage, location, day.date);
+    const data = state.weatherCache.get(key);
+    if (weatherCoreComplete(data)) entries.push({ key, data, sourceType: weatherSourceTypeFromCache(key, data) });
+  });
+  return entries[0] || null;
+}
+
+function weatherCacheByCity(location, day) {
+  const city = weatherLocationLabel(location).toLocaleLowerCase("zh-CN");
+  if (!city) return null;
+  const matches = Array.from(state.weatherCache.entries())
+    .filter(([, data]) => weatherCoreComplete(data) && data?.date === day.date && String(data.city || "").toLocaleLowerCase("zh-CN") === city)
+    .map(([key, data]) => ({ key, data, sourceType: weatherSourceTypeFromCache(key, data) }))
+    .sort((first, second) => new Date(second.data.updatedAt || 0) - new Date(first.data.updatedAt || 0));
+  return matches[0] || null;
+}
+
+function weatherFailureKey(sourceType, location, day) {
+  return weatherCacheKey(`failure:${sourceType}`, location, day.date);
+}
+
+function activeWeatherFailure(sourceType, location, day) {
+  const key = weatherFailureKey(sourceType, location, day);
+  const failure = weatherFailures.get(key);
+  if (!failure || failure.retryAt <= Date.now()) {
+    weatherFailures.delete(key);
+    return null;
+  }
+  return failure;
+}
+
+function rememberWeatherFailure(sourceType, location, day, statusText) {
+  weatherFailures.set(weatherFailureKey(sourceType, location, day), {
+    statusText,
+    retryAt: Date.now() + WEATHER_FAILURE_RETRY_MS,
+  });
+}
+
+function weatherStatusText(data, { cached = false, checking = false, error = "" } = {}) {
+  const timestamp = formatWeatherUpdatedAt(data?.updatedAt);
+  const parts = [];
+  if (timestamp) parts.push(`${cached ? "缓存" : "更新"} ${timestamp}`);
+  if (checking) parts.push("检查中");
+  else if (error) parts.push(error);
+  return parts.join(" · ") || (checking ? "检查中" : error);
+}
+
+function openAppleWeather(location) {
+  const params = new URLSearchParams();
+  const city = weatherLocationLabel(location);
+  if (city) params.set("city", city);
+  if (hasWeatherCoordinates(location)) {
+    params.set("latitude", String(location.latitude));
+    params.set("longitude", String(location.longitude));
+  }
+  window.location.href = `weather://?${params.toString()}`;
+}
+
+function renderWeatherContent(container, data, iconSet = "static", options = {}) {
   container.replaceChildren();
   const type = data?.type || "pending";
   const isReference = type === "historical";
@@ -1276,6 +1465,16 @@ function renderWeatherContent(container, data, iconSet = "static") {
   const description = type === "forecast" ? data.description : isReference ? referenceWeatherDescription(data) : data.description;
   const status = type === "historical" ? (data.windowLabel || "历史同期参考") : "";
   const ticket = createElement("div", `weather-ticket weather-ticket--${category} weather-ticket--${type}`);
+  const location = options.location || data;
+  ticket.setAttribute("role", "button");
+  ticket.setAttribute("tabindex", "0");
+  ticket.setAttribute("aria-label", `${data.city || "天气"}天气卡，打开苹果天气（实验功能）`);
+  ticket.addEventListener("click", () => openAppleWeather(location));
+  ticket.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openAppleWeather(location);
+  });
 
   const visual = createElement("div", "weather-ticket__visual");
   const visualHeading = createElement("div", "weather-ticket__visual-heading");
@@ -1318,18 +1517,18 @@ function renderWeatherContent(container, data, iconSet = "static") {
     ? [
         precipitationProbabilityLabel(data.rain),
         precipitationAmountLabel(data.precipitation),
-        windStrengthLabel(data.wind),
+        hasWeatherNumber(data.uv) ? `UV ${Math.round(Number(data.uv))}` : "UV —",
       ]
     : isReference
       ? [
           hasWeatherNumber(data.rainRatio) ? `同期雨日${Number(data.rainRatio) >= 0.4 ? "较多" : Number(data.rainRatio) >= 0.2 ? "偶有" : "较少"}` : "同期雨日暂无",
           `平均${precipitationAmountLabel(data.precipitation)}`,
-          `通常${windStrengthLabel(data.wind)}`,
+          historicalWindStrengthLabel(data.wind),
         ]
       : [
           "降水概率暂无",
           "降雨强度暂无",
-          "风力暂无",
+          "UV —",
         ];
   summaryValues.forEach((value) => {
     summary.append(createElement("span", "", value));
@@ -1347,46 +1546,151 @@ function renderWeatherContent(container, data, iconSet = "static") {
 
   ticket.append(content);
   container.append(ticket);
+  const statusButton = createElement("button", "weather-update-status", options.statusText || "");
+  statusButton.type = "button";
+  statusButton.hidden = !options.statusText;
+  statusButton.setAttribute("aria-label", `${options.statusText || "天气状态"}，点击刷新天气`);
+  statusButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    options.onRefresh?.();
+  });
+  container.append(statusButton);
 }
 
-async function updateWeatherCard(day, container, iconSet = "static") {
+function weatherRenderIsCurrent(container, token) {
+  return weatherRequestTokens.get(container) === token;
+}
+
+async function updateWeatherCard(day, container, iconSet = "static", { force = false, onlyIfExpired = false } = {}) {
+  if (!day || !container) return;
+  const token = ++weatherRequestSequence;
+  weatherRequestTokens.set(container, token);
+  container.dataset.weatherDate = day.date;
+  container.dataset.weatherIconSet = iconSet;
   const requestedLocation = weatherLocationForDay(day);
+  const refresh = () => updateWeatherCard(day, container, iconSet, { force: true });
   if (!requestedLocation) {
-    renderWeatherContent(container, pendingWeather(null), iconSet);
+    renderWeatherContent(container, pendingWeather(null), iconSet, {
+      statusText: "城市失败",
+      onRefresh: refresh,
+    });
     return;
   }
+  let cachedEntry = weatherCacheByCity(requestedLocation, day);
+  if (hasWeatherCoordinates(requestedLocation)) {
+    cachedEntry = bestWeatherCache(requestedLocation, day) || cachedEntry;
+  }
+  const renderCached = (checking = false, error = "", location = requestedLocation) => {
+    if (!weatherRenderIsCurrent(container, token)) return;
+    if (cachedEntry) {
+      renderWeatherContent(container, { ...cachedEntry.data, source: "cache" }, iconSet, {
+        location,
+        statusText: weatherStatusText(cachedEntry.data, { cached: true, checking, error }),
+        onRefresh: refresh,
+      });
+    } else {
+      renderWeatherContent(container, pendingWeather(location, checking ? "正在更新天气" : `暂时无法更新${weatherLocationLabel(location)}天气`), iconSet, {
+        location,
+        statusText: weatherStatusText(null, { checking, error }),
+        onRefresh: refresh,
+      });
+    }
+  };
+  if (!navigator.onLine) {
+    renderCached(false, "离线");
+    return;
+  }
+  renderCached(true);
   let location;
   try {
     location = await resolveWeatherLocation(requestedLocation);
   } catch (error) {
     console.warn("天气城市更新失败", error);
-    renderWeatherContent(container, pendingWeather(requestedLocation, `无法识别天气城市：${weatherLocationLabel(requestedLocation)}`), iconSet);
+    renderCached(false, "城市失败");
     return;
   }
+  if (!weatherRenderIsCurrent(container, token)) return;
   if (!location) {
-    renderWeatherContent(container, pendingWeather(requestedLocation, `无法识别天气城市：${weatherLocationLabel(requestedLocation)}`), iconSet);
+    renderCached(false, "城市失败");
     return;
   }
-  const type = isForecastDate(day) ? "forecast" : "historical";
-  const cacheKey = weatherCacheKey(type, location, day.date);
-  const cached = state.weatherCache.get(cacheKey);
-  if (cached) renderWeatherContent(container, { ...cached, source: "cache" }, iconSet);
-  else renderWeatherContent(container, pendingWeather(location, navigator.onLine ? "正在更新天气" : "暂无缓存天气"), iconSet);
-  const cachedIsComplete = type === "forecast" || hasWeatherNumber(cached?.wind);
-  if (!navigator.onLine || (type === "forecast" && weatherCacheIsFresh(cached)) || (cached && cachedIsComplete)) return;
-  try {
-    const fresh = type === "forecast" ? await fetchWeather(day, location) : await fetchHistoricalWeather(day, location);
-    if (!fresh) {
-      if (!cached) renderWeatherContent(container, pendingWeather(location, "暂无可用天气数据"), iconSet);
-      return;
-    }
-    state.weatherCache.set(cacheKey, fresh);
-    await putInStore("meta", { key: cacheKey, value: fresh });
-    renderWeatherContent(container, fresh, iconSet);
-  } catch (error) {
-    console.warn("天气更新失败", error);
-    if (!cached) renderWeatherContent(container, pendingWeather(location, "暂时无法更新天气"), iconSet);
+  cachedEntry = bestWeatherCache(location, day) || cachedEntry;
+  if (onlyIfExpired && cachedEntry && weatherCacheIsFresh(cachedEntry.data, day, cachedEntry.sourceType)) {
+    renderCached(false, "", location);
+    return;
   }
+  const sources = weatherSourcesForDay(day);
+  const preferredCached = weatherCacheEntry(location, day, sources[0]);
+  if (!force && preferredCached && weatherCacheIsFresh(preferredCached.data, day, preferredCached.sourceType)) {
+    cachedEntry = preferredCached;
+    renderCached(false, "", location);
+    return;
+  }
+  const attempts = [];
+  let failureStatus = "";
+  for (const sourceType of sources) {
+    const failure = force ? null : activeWeatherFailure(sourceType, location, day);
+    if (failure) {
+      if (!failureStatus) failureStatus = failure.statusText;
+      continue;
+    }
+    const sourceCached = weatherCacheEntry(location, day, sourceType);
+    if (!force && sourceCached && weatherCacheIsFresh(sourceCached.data, day, sourceType)) {
+      cachedEntry = sourceCached;
+      if (!attempts.length) {
+        renderCached(false, failureStatus, location);
+        return;
+      }
+      break;
+    }
+    attempts.push(sourceType);
+  }
+  if (!attempts.length) {
+    renderCached(false, failureStatus || "更新失败", location);
+    return;
+  }
+  renderCached(true, "", location);
+  for (const sourceType of attempts) {
+    try {
+      const fresh = sourceType === "historical"
+        ? await fetchHistoricalWeather(day, location)
+        : await fetchForecastWeather(day, location, sourceType);
+      if (!weatherCoreComplete(fresh)) throw new WeatherUpdateError(weatherSourceUnavailableText(sourceType));
+      const cacheKey = weatherCacheKey(sourceType, location, day.date);
+      state.weatherCache.set(cacheKey, fresh);
+      await putInStore("meta", { key: cacheKey, value: fresh });
+      weatherFailures.delete(weatherFailureKey(sourceType, location, day));
+      if (!weatherRenderIsCurrent(container, token)) return;
+      renderWeatherContent(container, fresh, iconSet, {
+        location,
+        statusText: weatherStatusText(fresh),
+        onRefresh: refresh,
+      });
+      return;
+    } catch (error) {
+      const statusText = weatherErrorText(error);
+      if (!failureStatus) failureStatus = statusText;
+      rememberWeatherFailure(sourceType, location, day, statusText);
+      console.warn(`天气来源 ${sourceType} 更新失败`, error);
+    }
+  }
+  renderCached(false, failureStatus || "更新失败", location);
+}
+
+function refreshVisibleWeatherCards({ force = false, onlyIfExpired = false } = {}) {
+  document.querySelectorAll("[data-weather-date]").forEach((container) => {
+    const day = state.itinerary?.days?.find((item) => item.date === container.dataset.weatherDate);
+    if (day) updateWeatherCard(day, container, container.dataset.weatherIconSet || "static", { force, onlyIfExpired });
+  });
+}
+
+function bindWeatherRefreshTriggers() {
+  if (weatherRefreshTriggersBound) return;
+  weatherRefreshTriggersBound = true;
+  window.addEventListener("online", () => refreshVisibleWeatherCards({ force: true }));
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshVisibleWeatherCards({ onlyIfExpired: true });
+  });
 }
 
 function eventTime(event) {
@@ -1406,7 +1710,7 @@ function appendHotel(container, label, hotel) {
   block.append(createElement("p", "brief-label", label));
   block.append(createElement("p", "brief-main", hotel.name));
   if (hotel.address) block.append(createElement("p", "brief-detail", hotel.address));
-  if (hotel.name) block.append(createMapActions({ label: hotel.name, query: hotel.name }));
+  if (hotel.address) block.append(createMapActions({ label: hotel.name, query: hotel.address }));
   container.append(block);
 }
 
@@ -1664,17 +1968,9 @@ function checklistCheckIcon() {
   return icon;
 }
 
-function openChecklistRelatedDay(item) {
-  const relatedDate = item.relatedDate || state.eventsById.get(item.relatedItemId)?.date;
-  const index = state.itinerary.days.findIndex((day) => day.date === relatedDate);
-  if (index < 0) return;
-  state.selectedIndex = index;
-  setViewMode("all");
-}
-
 function createChecklistItem(item, completed) {
   const row = createElement("div", `checklist-item${completed ? " checklist-item--done" : ""}`);
-  row.addEventListener("click", () => openChecklistRelatedDay(item));
+  row.addEventListener("click", () => openChecklistEditDialog(item));
   const checkbox = createElement("button", "checklist-checkbox");
   checkbox.type = "button";
   checkbox.setAttribute("aria-label", completed ? "恢复待办" : "完成待办");
@@ -1684,25 +1980,11 @@ function createChecklistItem(item, completed) {
     await setChecklistDone(item.id, !completed);
   });
 
-  const body = createElement("div", "checklist-body");
-  const titleLine = createElement("span", "checklist-title-line");
-  const titleAction = createElement("button", "checklist-title-action");
-  titleAction.type = "button";
-  titleAction.append(createElement("span", "checklist-title", item.title));
-  titleLine.append(titleAction);
-  body.append(titleLine);
+  const body = createElement("button", "checklist-body");
+  body.type = "button";
+  body.append(createElement("span", "checklist-title", item.title));
   body.append(createElement("span", "checklist-meta", checklistMetaText(item)));
   if (item.note && !completed) body.append(createElement("span", "checklist-note", item.note));
-
-  const edit = createElement("button", "checklist-edit");
-  edit.type = "button";
-  edit.setAttribute("aria-label", "编辑待办");
-  edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
-  edit.addEventListener("click", (event) => {
-    event.stopPropagation();
-    openChecklistEditDialog(item);
-  });
-  titleLine.append(edit);
 
   const remove = createElement("button", "checklist-delete", "×");
   remove.type = "button";
@@ -1725,35 +2007,34 @@ function ensureChecklistEditDialog() {
   return dialog;
 }
 
-function openChecklistEditDialog(item = null) {
-  const isNew = !item;
-  const source = item || { title: "", dueDate: "", relatedDate: "", note: "" };
+function openChecklistEditDialog(item) {
   const dialog = ensureChecklistEditDialog();
   dialog.replaceChildren();
   const form = createElement("form", "edit-form checklist-edit-form");
   form.method = "dialog";
-  form.append(createElement("div", "trip-manager-sheet__grab checklist-edit-sheet__grab"));
   const heading = createElement("div", "edit-form__heading");
   const title = createElement("div");
   title.append(createElement("p", "eyebrow", "LOCAL TODO"));
-  title.append(createElement("h2", "", isNew ? "新增待办" : "编辑待办"));
+  title.append(createElement("h2", "", "编辑待办"));
   const close = createElement("button", "dialog-close", "×");
   close.type = "button";
   close.addEventListener("click", () => dialog.close());
   heading.append(title, close);
 
-  const titleField = createChecklistField("待办标题", "text", source.title);
-  titleField.input.required = true;
-  const dueField = createChecklistField("截止日期", "date", source.dueDate);
-  const relatedField = createChecklistField("关联日期", "date", source.relatedDate);
-  titleField.field.classList.add("form-field--wide");
-  dueField.field.classList.add("checklist-date-field", "checklist-date-field--due");
-  relatedField.field.classList.add("checklist-date-field", "checklist-date-field--related");
+  const titleField = createChecklistField("标题", "text", item.title);
+  const dueField = createChecklistField("截止日期", "date", item.dueDate);
+  const priorityField = createElement("label", "form-field");
+  priorityField.append(createElement("span", "", "优先级"));
+  const priority = createElement("select");
+  priority.innerHTML = '<option value="normal">普通</option><option value="high">高</option>';
+  priority.value = item.priority === "high" || item.priority === "urgent" ? "high" : "normal";
+  priorityField.append(priority);
+  const relatedField = createChecklistField("关联日期", "date", item.relatedDate);
   const noteField = createElement("label", "form-field form-field--wide");
-  noteField.append(createElement("span", "", "备注"));
+  noteField.append(createElement("span", "", "补充说明"));
   const note = createElement("textarea");
   note.rows = 4;
-  note.value = source.note || "";
+  note.value = item.note || "";
   noteField.append(note);
   const actions = createElement("div", "edit-form__actions form-field--wide");
   const cancel = createElement("button", "secondary-button", "不保存");
@@ -1763,28 +2044,17 @@ function openChecklistEditDialog(item = null) {
   save.type = "submit";
   actions.append(cancel, save);
 
-  form.append(heading, titleField.field, dueField.field, relatedField.field, noteField, actions);
+  form.append(heading, titleField.field, dueField.field, priorityField, relatedField.field, noteField, actions);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const id = item?.id || `local-todo-${crypto.randomUUID?.() || Date.now()}`;
-    const edits = {
-      ...(item ? checklistRow(item.id).edits : {}),
-      title: titleField.input.value.trim(),
-      dueDate: dueField.input.value,
-      dueLabel: "",
-      relatedDate: relatedField.input.value,
-      note: note.value.trim(),
-    };
-    if (isNew) {
-      state.checklistItems.push({
-        id,
-        ...edits,
-      });
-    }
-    await saveChecklistState(id, {
-      created: isNew || checklistRow(id).created,
+    await saveChecklistState(item.id, {
       edits: {
-        ...edits,
+        title: titleField.input.value.trim() || item.title,
+        dueDate: dueField.input.value,
+        dueLabel: "",
+        priority: priority.value,
+        relatedDate: relatedField.input.value,
+        note: note.value.trim(),
       },
     });
     dialog.close();
@@ -1810,6 +2080,7 @@ function renderChecklistPanel() {
   const wasOpen = Boolean(elements.checklistPanel.querySelector(".checklist-panel")?.open);
   const doneWasOpen = Boolean(elements.checklistPanel.querySelector(".checklist-done")?.open);
   elements.checklistPanel.replaceChildren();
+  if (!items.length) return;
 
   const pending = items.filter((item) => !isChecklistDone(item.id)).sort(sortOpenChecklist);
   const completed = items.filter((item) => isChecklistDone(item.id)).sort(sortCompletedChecklist);
@@ -1818,16 +2089,8 @@ function renderChecklistPanel() {
 
   const summary = createElement("summary", "checklist-summary");
   const title = createElement("span", "checklist-summary__title", "待办");
-  const count = pending.length ? `${pending.length} 项未完成` : (completed.length ? "全部完成" : "暂无待办");
-  const add = createElement("button", "checklist-add", "+");
-  add.type = "button";
-  add.setAttribute("aria-label", "新增待办");
-  add.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    openChecklistEditDialog();
-  });
-  summary.append(title, createElement("span", "checklist-summary__count", count), add);
+  const count = pending.length ? `${pending.length} 项未完成` : "全部完成";
+  summary.append(title, createElement("span", "checklist-summary__count", count));
   details.append(summary);
 
   if (pending.length) {
@@ -2607,8 +2870,8 @@ function drivingEventForDay(day) {
 
 function driveSummaryForDay(day) {
   const detail = drivingEventForDay(day)?.transportCard?.segments?.[0]?.detail || "";
-  const distance = detail.match(/(?:约\s*)?\d+(?:\.\d+)?(?:\s*[–—~～-]\s*\d+(?:\.\d+)?)?\s*km\b/i)?.[0];
-  const duration = detail.match(/约\s*\d+(?:\.\d+)?(?:\s*[–—~～-]\s*\d+(?:\.\d+)?)?\s*(?:小时|分钟|分)/)?.[0];
+  const distance = detail.match(/\b\d+(?:\.\d+)?\s*km\b/i)?.[0];
+  const duration = detail.match(/约\s*\d+小时(?:\d+分)?|约\s*\d+分/)?.[0];
   return [distance, duration].filter(Boolean).join(" · ");
 }
 
@@ -3277,13 +3540,7 @@ async function initialize(itinerary) {
   state.dayDeletions = new Map(dayDeletionRows.filter(belongsToCurrentTrip).map((row) => [row.id, row]));
   state.extraDays = new Map(extraDayRows.filter(belongsToCurrentTrip).map((row) => [row.date, row]));
   state.dayTitles = new Map(dayTitleRows.filter(belongsToCurrentTrip).map((row) => [row.date, row]));
-  const baseChecklistIds = new Set(checklistItems.map((item) => item.id));
-  state.checklistItems = [
-    ...checklistItems,
-    ...[...state.checklistCompletions.values()]
-      .filter((row) => row.created && row.edits?.title && !baseChecklistIds.has(row.id))
-      .map((row) => ({ id: row.id, ...row.edits })),
-  ];
+  state.checklistItems = checklistItems;
   state.weatherCache = new Map(metaRows
     .filter((row) => String(row.key).startsWith(WEATHER_CACHE_PREFIX))
     .map((row) => [row.key, row.value]));
@@ -3345,6 +3602,7 @@ async function initialize(itinerary) {
     event.preventDefault();
     closeDayTitleDialog();
   });
+  bindWeatherRefreshTriggers();
   elements.app.hidden = false;
   await renderTripMenu();
   setViewMode("today");
