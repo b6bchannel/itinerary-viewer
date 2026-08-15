@@ -8,10 +8,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Travel Plan">
   <title>Travel Plan</title>
-  <link rel="manifest" href="./manifest.json?v=20260811-weather-v8">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icons/ico/roadtrip-icon-192.png?v=20260811-weather-v8">
-  <link rel="icon" type="image/png" sizes="512x512" href="./icons/ico/roadtrip-icon-512.png?v=20260811-weather-v8">
-  <link rel="stylesheet" href="styles.css?v=20260811-weather-v8">
+  <link rel="manifest" href="./manifest.json?v=20260815-new-trip-v1">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/ico/roadtrip-icon-192.png?v=20260815-new-trip-v1">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icons/ico/roadtrip-icon-512.png?v=20260815-new-trip-v1">
+  <link rel="stylesheet" href="styles.css?v=20260815-new-trip-v1">
 </head>
 <body>
   <header class="page-header">
@@ -241,6 +241,72 @@
     </form>
   </dialog>
 
+  <dialog id="new-trip-dialog" class="edit-dialog">
+    <form id="new-trip-form" class="edit-form" method="dialog">
+      <div class="edit-form__heading">
+        <div>
+          <p class="eyebrow">New trip</p>
+          <h2>新建旅程</h2>
+        </div>
+        <button id="close-new-trip" class="dialog-close" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="form-intro form-field--wide">先创建空白日期，城市和行程事项都可以之后逐天补充。</p>
+      <label class="form-field form-field--wide">
+        <span>旅程名称</span>
+        <input id="new-trip-name" name="tripName" type="text" maxlength="80" required placeholder="例如：北海道秋日旅行">
+      </label>
+      <label class="form-field">
+        <span>开始日期</span>
+        <input id="new-trip-start" name="startDate" type="date" required>
+      </label>
+      <label class="form-field">
+        <span>旅行天数</span>
+        <input id="new-trip-days" name="dayCount" type="number" min="1" max="365" value="3" inputmode="numeric" required>
+      </label>
+      <label class="form-field form-field--wide">
+        <span>默认地图</span>
+        <select id="new-trip-map-provider" name="mapProvider">
+          <option value="google">Google Maps</option>
+          <option value="amap">高德地图</option>
+        </select>
+      </label>
+      <label class="form-field form-field--wide">
+        <span>第一个城市 <small>可选</small></span>
+        <input id="new-trip-first-city" name="firstCity" type="text" maxlength="100" autocomplete="off" placeholder="不填写也可以直接创建">
+      </label>
+      <label class="plain-check form-field--wide">
+        <input id="new-trip-apply-city" name="applyCityToAll" type="checkbox" disabled>
+        <span>应用到全部日期，之后可逐天修改</span>
+      </label>
+      <div class="edit-form__actions form-field--wide">
+        <button id="cancel-new-trip" class="secondary-button" type="button">取消</button>
+        <button id="submit-new-trip" class="primary-button" type="submit">创建旅程</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="city-picker-dialog" class="edit-dialog city-picker-dialog">
+    <form id="city-picker-form" class="edit-form" method="dialog">
+      <div class="edit-form__heading">
+        <div>
+          <p class="eyebrow">Day city</p>
+          <h2 id="city-picker-title">添加当天城市</h2>
+        </div>
+        <button id="close-city-picker" class="dialog-close" type="button" aria-label="关闭">×</button>
+      </div>
+      <p id="city-picker-date" class="form-intro form-field--wide"></p>
+      <label class="form-field form-field--wide">
+        <span>城市名</span>
+        <input id="city-picker-query" name="cityQuery" type="search" maxlength="100" autocomplete="off" required placeholder="例如：札幌、Paris">
+      </label>
+      <div class="city-picker-search form-field--wide">
+        <button id="city-picker-search" class="primary-button" type="submit">搜索城市</button>
+        <p id="city-picker-status" class="city-picker-status" role="status" aria-live="polite"></p>
+      </div>
+      <div id="city-picker-results" class="city-picker-results form-field--wide"></div>
+    </form>
+  </dialog>
+
   <dialog id="trip-manager-dialog" class="trip-manager-dialog">
     <div class="trip-manager-sheet">
       <div class="trip-manager-sheet__grab" aria-hidden="true"></div>
@@ -253,6 +319,10 @@
         <button id="trip-manager-import" class="trip-manager-action" type="button">
           <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6"/><path d="m9 15 3 3 3-3"/></svg></span>
           <span><strong>导入旅行包</strong><small>仅保存到这台设备</small></span>
+        </button>
+        <button id="trip-manager-new" class="trip-manager-action" type="button">
+          <span aria-hidden="true">＋</span>
+          <span><strong>新建旅程</strong><small>从空白日期开始安排</small></span>
         </button>
       </footer>
     </div>
@@ -1582,6 +1652,6 @@
 }
 
   </script>
-  <script src="app.js?v=20260811-weather-v8"></script>
+  <script src="app.js?v=20260815-new-trip-v1"></script>
 </body>
 </html>

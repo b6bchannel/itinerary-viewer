@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "20260811-weather-v8";
+const APP_VERSION = "20260815-new-trip-v1";
 const DB_NAME = "travel-plan-starter";
 const DB_VERSION = 7;
 const DEFAULT_TRIP_ID = "";
@@ -82,6 +82,7 @@ const state = {
   dayDeletions: new Map(),
   extraDays: new Map(),
   dayTitles: new Map(),
+  dayLocations: new Map(),
   noteTimers: new Map(),
   checklistUndoTimer: 0,
   selectedIndex: 0,
@@ -89,6 +90,7 @@ const state = {
   editingEventId: null,
   editingIsNew: false,
   editingDayDate: null,
+  editingCityDate: null,
   travelPackage: null,
 };
 
@@ -104,7 +106,28 @@ const elements = {
   tripManagerContent: document.querySelector("#trip-manager-content"),
   closeTripManager: document.querySelector("#close-trip-manager"),
   tripManagerImport: document.querySelector("#trip-manager-import"),
+  tripManagerNew: document.querySelector("#trip-manager-new"),
   tripImportInput: document.querySelector("#trip-import-input"),
+  newTripDialog: document.querySelector("#new-trip-dialog"),
+  newTripForm: document.querySelector("#new-trip-form"),
+  closeNewTrip: document.querySelector("#close-new-trip"),
+  cancelNewTrip: document.querySelector("#cancel-new-trip"),
+  submitNewTrip: document.querySelector("#submit-new-trip"),
+  newTripName: document.querySelector("#new-trip-name"),
+  newTripStart: document.querySelector("#new-trip-start"),
+  newTripDays: document.querySelector("#new-trip-days"),
+  newTripMapProvider: document.querySelector("#new-trip-map-provider"),
+  newTripFirstCity: document.querySelector("#new-trip-first-city"),
+  newTripApplyCity: document.querySelector("#new-trip-apply-city"),
+  cityPickerDialog: document.querySelector("#city-picker-dialog"),
+  cityPickerForm: document.querySelector("#city-picker-form"),
+  closeCityPicker: document.querySelector("#close-city-picker"),
+  cityPickerTitle: document.querySelector("#city-picker-title"),
+  cityPickerDate: document.querySelector("#city-picker-date"),
+  cityPickerQuery: document.querySelector("#city-picker-query"),
+  cityPickerSearch: document.querySelector("#city-picker-search"),
+  cityPickerStatus: document.querySelector("#city-picker-status"),
+  cityPickerResults: document.querySelector("#city-picker-results"),
   showToday: document.querySelector("#show-today"),
   showAll: document.querySelector("#show-all"),
   todayView: document.querySelector("#today-view"),
@@ -382,12 +405,135 @@ function tripDateRange(item) {
   return [range, count ? `${count} 天` : ""].filter(Boolean).join(" · ");
 }
 
+function makeManualTripPackage({ title, startDate, dayCount, mapProvider, firstCity, applyCityToAll }) {
+  const tripId = `local-trip-${startDate.replaceAll("-", "")}-${crypto.randomUUID()}`;
+  const createdAt = new Date().toISOString();
+  const location = firstCity ? {
+    displayName: firstCity,
+    name: firstCity,
+    source: "manual-create",
+  } : null;
+  const days = Array.from({ length: dayCount }, (_, index) => {
+    const date = addDays(startDate, index);
+    const useFirstCity = Boolean(location && (index === 0 || applyCityToAll));
+    return {
+      date,
+      dateOriginal: date,
+      theme: "",
+      route: `Day ${index + 1}`,
+      notes: "",
+      eventIds: [],
+      brief: {
+        hotelAtStart: null,
+        hotelChanges: [],
+        hotelAtEndAssumed: null,
+        keyTransportEventIds: [],
+        importantEventIds: [],
+      },
+      city: useFirstCity ? { displayName: firstCity } : null,
+      weatherLocation: useFirstCity ? { ...location } : null,
+    };
+  });
+  const endDate = days.at(-1).date;
+  return {
+    id: tripId,
+    kind: "travel-plan-package",
+    version: 1,
+    tripId,
+    fileName: `local_${startDate.replaceAll("-", "").slice(2)}.travel.json`,
+    tripMeta: {
+      id: tripId,
+      title,
+      dateStart: startDate,
+      dateEnd: endDate,
+      dayCount,
+      mapProvider,
+      status: "local",
+      lastUpdated: createdAt.slice(0, 10),
+    },
+    trip: {
+      metadata: {
+        schemaVersion: 1,
+        tripId,
+        tripTitle: title,
+        tripYear: Number(startDate.slice(0, 4)),
+        dateStart: startDate,
+        dateEnd: endDate,
+        dayCount,
+        recordCount: 0,
+        sourceName: "本机新建旅程",
+        generatedAt: createdAt,
+        notes: "",
+        mapProvider,
+      },
+      days,
+      events: [],
+    },
+    reviewNeeded: { tripId, items: [] },
+    localData: null,
+    importedAt: createdAt,
+  };
+}
+
+function openNewTripDialog() {
+  closeTripManager();
+  elements.newTripForm?.reset();
+  elements.newTripStart.value = localDateString();
+  elements.newTripDays.value = "3";
+  elements.newTripMapProvider.value = "google";
+  elements.newTripApplyCity.checked = false;
+  elements.newTripApplyCity.disabled = true;
+  elements.submitNewTrip.disabled = false;
+  elements.submitNewTrip.textContent = "创建旅程";
+  elements.newTripDialog?.showModal();
+  window.setTimeout(() => elements.newTripName?.focus(), 0);
+}
+
+function closeNewTripDialog() {
+  if (elements.newTripDialog?.open) elements.newTripDialog.close();
+}
+
+function updateNewTripCityOption() {
+  const hasCity = Boolean(elements.newTripFirstCity?.value.trim());
+  elements.newTripApplyCity.disabled = !hasCity;
+  if (!hasCity) elements.newTripApplyCity.checked = false;
+}
+
+async function saveNewTripForm(event) {
+  event.preventDefault();
+  const title = elements.newTripName.value.trim();
+  const startDate = elements.newTripStart.value;
+  const dayCount = Number(elements.newTripDays.value);
+  const mapProvider = elements.newTripMapProvider.value === "amap" ? "amap" : "google";
+  const firstCity = elements.newTripFirstCity.value.trim();
+  if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !Number.isInteger(dayCount) || dayCount < 1 || dayCount > 365) return;
+  elements.submitNewTrip.disabled = true;
+  elements.submitNewTrip.textContent = "正在创建…";
+  try {
+    const travelPackage = makeManualTripPackage({
+      title,
+      startDate,
+      dayCount,
+      mapProvider,
+      firstCity,
+      applyCityToAll: Boolean(firstCity && elements.newTripApplyCity.checked),
+    });
+    await saveTravelPackage(travelPackage);
+    window.location.reload();
+  } catch (error) {
+    console.error(error);
+    elements.submitNewTrip.disabled = false;
+    elements.submitNewTrip.textContent = "创建旅程";
+    window.alert(error.message || "新建旅程失败，请稍后再试。");
+  }
+}
+
 function openTripManager() {
   renderTripMenu().then(() => elements.tripManagerDialog?.showModal());
 }
 
 function closeTripManager() {
-  elements.tripManagerDialog?.close();
+  if (elements.tripManagerDialog?.open) elements.tripManagerDialog.close();
 }
 
 function createTripRow(item, current = false) {
@@ -535,7 +681,10 @@ async function renderTripMenu() {
       try { await importSamplePackage(); }
       catch (error) { window.alert(error.message || "示例旅程导入失败"); }
     });
-    empty.append(importButton, sampleButton);
+    const newButton = createElement("button", "secondary-button", "新建旅程");
+    newButton.type = "button";
+    newButton.addEventListener("click", openNewTripDialog);
+    empty.append(importButton, sampleButton, newButton);
     elements.tripManagerContent.append(empty);
   }
 }
@@ -958,9 +1107,11 @@ function fullDate(dateString) {
 
 function primaryCityForDay(day) {
   const fallbackLocation = WEATHER_LOCATIONS_BY_DATE[day.date];
-  return day.titleOverride
+  return day.city?.displayName
+    || (typeof day.city === "string" ? day.city : "")
     || day.weatherLocation?.displayName
     || day.weatherLocation?.name
+    || day.titleOverride
     || fallbackLocation?.displayName
     || fallbackLocation?.name
     || day.route
@@ -1201,18 +1352,7 @@ function weatherLocationForDay(day) {
       name: String(location.name || displayName).trim(),
     };
   }
-  const candidates = [
-    day.city,
-    day.routeOverview?.city,
-    ...(day.brief?.hotelChanges || []).map((hotel) => hotel.city),
-    ...eventsForDay(day).map((event) => event.city),
-  ];
-  const name = candidates.find((value) => typeof value === "string" && value.trim() && !/[→>]/.test(value));
-  return name ? {
-    displayName: name.trim(),
-    name: name.trim(),
-    source: "inferred-city-field",
-  } : null;
+  return null;
 }
 
 async function resolveWeatherLocation(location) {
@@ -1251,6 +1391,142 @@ async function resolveWeatherLocation(location) {
   state.weatherCache.set(cacheKey, resolved);
   await putInStore("meta", { key: cacheKey, value: resolved });
   return resolved;
+}
+
+function dayLocationKey(date, tripId = state.tripId) {
+  return `dayLocation:${tripId}:${date}`;
+}
+
+function openCityPicker(day) {
+  if (!day) return;
+  state.editingCityDate = day.date;
+  const existing = weatherLocationForDay(day);
+  elements.cityPickerTitle.textContent = existing ? "修改当天城市" : "添加当天城市";
+  elements.cityPickerDate.textContent = `${fullDate(day.date)} · 城市只用于当天 brief 和天气`;
+  elements.cityPickerQuery.value = weatherLocationLabel(existing);
+  elements.cityPickerStatus.textContent = "";
+  elements.cityPickerResults.replaceChildren();
+  elements.cityPickerSearch.disabled = false;
+  elements.cityPickerSearch.textContent = "搜索城市";
+  elements.cityPickerDialog?.showModal();
+  window.setTimeout(() => {
+    elements.cityPickerQuery?.focus();
+    elements.cityPickerQuery?.select();
+  }, 0);
+}
+
+function closeCityPicker() {
+  if (elements.cityPickerDialog?.open) elements.cityPickerDialog.close();
+  state.editingCityDate = null;
+}
+
+function geocodingDisplayName(result) {
+  return [result.name, result.admin1, result.country]
+    .map((value) => String(value || "").trim())
+    .filter((value, index, values) => value && values.indexOf(value) === index)
+    .join(" · ");
+}
+
+async function searchWeatherLocations(query) {
+  const params = new URLSearchParams({
+    name: query,
+    count: "8",
+    language: "zh",
+    format: "json",
+  });
+  const payload = await fetchWeatherJson(`https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`);
+  return (payload.results || [])
+    .filter((result) => result?.name && hasWeatherCoordinates(result))
+    .map((result) => ({
+      displayName: geocodingDisplayName(result) || result.name,
+      name: result.name,
+      countryCode: result.country_code || "",
+      latitude: Number(result.latitude),
+      longitude: Number(result.longitude),
+      source: "open-meteo-geocoding",
+    }));
+}
+
+async function saveSelectedCity(location) {
+  const date = state.editingCityDate;
+  if (!date || !location) return;
+  const previous = state.dayLocations.get(date) || null;
+  const row = {
+    key: dayLocationKey(date),
+    tripId: state.tripId,
+    date,
+    city: {
+      displayName: location.displayName,
+      ...(location.countryCode ? { countryCode: location.countryCode } : {}),
+    },
+    weatherLocation: {
+      displayName: location.displayName,
+      name: location.name,
+      ...(location.countryCode ? { countryCode: location.countryCode } : {}),
+      latitude: location.latitude,
+      longitude: location.longitude,
+      source: location.source,
+    },
+    updatedAt: new Date().toISOString(),
+  };
+  state.dayLocations.set(date, row);
+  await putInStore("meta", row);
+  await recordChange("day-city", date, previous, row);
+  await markLocalSave(row.updatedAt);
+  applyEffectiveItinerary(date);
+  closeCityPicker();
+  renderCurrentView();
+}
+
+function renderCityPickerResults(results) {
+  elements.cityPickerResults.replaceChildren();
+  results.forEach((location) => {
+    const button = createElement("button", "city-picker-result");
+    button.type = "button";
+    const text = createElement("span", "city-picker-result__text");
+    text.append(
+      createElement("strong", "", location.displayName),
+      createElement("small", "", location.countryCode || "城市")
+    );
+    button.append(text, createElement("span", "city-picker-result__choose", "选择"));
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      elements.cityPickerStatus.textContent = "正在保存…";
+      try {
+        await saveSelectedCity(location);
+      } catch (error) {
+        console.error(error);
+        button.disabled = false;
+        elements.cityPickerStatus.textContent = "保存失败，请重试。";
+      }
+    });
+    elements.cityPickerResults.append(button);
+  });
+}
+
+async function submitCityPickerSearch(event) {
+  event.preventDefault();
+  const query = elements.cityPickerQuery.value.trim();
+  if (!query) return;
+  elements.cityPickerSearch.disabled = true;
+  elements.cityPickerSearch.textContent = "搜索中…";
+  elements.cityPickerStatus.textContent = "正在查找候选城市";
+  elements.cityPickerResults.replaceChildren();
+  try {
+    const results = await searchWeatherLocations(query);
+    if (!results.length) {
+      elements.cityPickerStatus.textContent = "没有找到匹配城市，请换一个名称。";
+      return;
+    }
+    elements.cityPickerStatus.textContent = `找到 ${results.length} 个候选，请选择一个城市。`;
+    renderCityPickerResults(results);
+  } catch (error) {
+    console.error(error);
+    elements.cityPickerStatus.textContent = navigator.onLine ? "城市搜索失败，请稍后重试。" : "当前离线，联网后再搜索城市。";
+  } finally {
+    elements.cityPickerSearch.disabled = false;
+    elements.cityPickerSearch.textContent = "搜索城市";
+  }
 }
 
 function dateAtYear(dateString, year, offset = 0) {
@@ -1546,6 +1822,7 @@ function renderWeatherContent(container, data, iconSet = "static", options = {})
 
   ticket.append(content);
   container.append(ticket);
+  const footer = createElement("div", "weather-card-footer");
   const statusButton = createElement("button", "weather-update-status", options.statusText || "");
   statusButton.type = "button";
   statusButton.hidden = !options.statusText;
@@ -1554,7 +1831,30 @@ function renderWeatherContent(container, data, iconSet = "static", options = {})
     event.stopPropagation();
     options.onRefresh?.();
   });
-  container.append(statusButton);
+  footer.append(statusButton);
+  if (options.onEditLocation) {
+    const editLocation = createElement("button", "weather-location-edit", "修改城市");
+    editLocation.type = "button";
+    editLocation.addEventListener("click", options.onEditLocation);
+    footer.append(editLocation);
+  }
+  container.append(footer);
+}
+
+function renderWeatherLocationEmpty(container, day) {
+  container.replaceChildren();
+  container.dataset.weatherDate = day.date;
+  const empty = createElement("div", "weather-location-empty");
+  const text = createElement("div", "weather-location-empty__text");
+  text.append(
+    createElement("strong", "", "添加当天城市后显示天气"),
+    createElement("span", "", "城市可逐天设置，不影响地图搜索和行程地点。")
+  );
+  const button = createElement("button", "weather-location-add", "添加城市");
+  button.type = "button";
+  button.addEventListener("click", () => openCityPicker(day));
+  empty.append(text, button);
+  container.append(empty);
 }
 
 function weatherRenderIsCurrent(container, token) {
@@ -1569,11 +1869,9 @@ async function updateWeatherCard(day, container, iconSet = "static", { force = f
   container.dataset.weatherIconSet = iconSet;
   const requestedLocation = weatherLocationForDay(day);
   const refresh = () => updateWeatherCard(day, container, iconSet, { force: true });
+  const editLocation = () => openCityPicker(day);
   if (!requestedLocation) {
-    renderWeatherContent(container, pendingWeather(null), iconSet, {
-      statusText: "城市失败",
-      onRefresh: refresh,
-    });
+    renderWeatherLocationEmpty(container, day);
     return;
   }
   let cachedEntry = weatherCacheByCity(requestedLocation, day);
@@ -1587,12 +1885,14 @@ async function updateWeatherCard(day, container, iconSet = "static", { force = f
         location,
         statusText: weatherStatusText(cachedEntry.data, { cached: true, checking, error }),
         onRefresh: refresh,
+        onEditLocation: editLocation,
       });
     } else {
       renderWeatherContent(container, pendingWeather(location, checking ? "正在更新天气" : `暂时无法更新${weatherLocationLabel(location)}天气`), iconSet, {
         location,
         statusText: weatherStatusText(null, { checking, error }),
         onRefresh: refresh,
+        onEditLocation: editLocation,
       });
     }
   };
@@ -1665,6 +1965,7 @@ async function updateWeatherCard(day, container, iconSet = "static", { force = f
         location,
         statusText: weatherStatusText(fresh),
         onRefresh: refresh,
+        onEditLocation: editLocation,
       });
       return;
     } catch (error) {
@@ -1760,6 +2061,7 @@ function makeExtraDay(date) {
     originalDate: date,
     theme: "",
     route: "新的一天",
+    notes: "",
     eventIds: [],
     isExtraDay: true,
     brief: {
@@ -1769,6 +2071,7 @@ function makeExtraDay(date) {
       keyTransportEventIds: [],
       importantEventIds: [],
     },
+    city: null,
     weatherLocation: WEATHER_LOCATIONS_BY_DATE[date] || null,
   };
 }
@@ -1784,13 +2087,17 @@ function buildEffectiveItinerary(itinerary) {
     .map((day) => {
       const originalDate = day.originalDate || day.date;
       const titleOverride = state.dayTitles.get(day.date)?.title || "";
+      const locationOverride = state.dayLocations.get(day.date);
       return {
         ...day,
         originalDate,
         date: day.date,
         titleOverride,
         route: titleOverride || day.route,
-        weatherLocation: WEATHER_LOCATIONS_BY_DATE[originalDate] || day.weatherLocation || null,
+        city: locationOverride ? locationOverride.city : (day.city || null),
+        weatherLocation: locationOverride
+          ? locationOverride.weatherLocation
+          : (WEATHER_LOCATIONS_BY_DATE[originalDate] || day.weatherLocation || null),
       };
     })
     .sort((first, second) => first.date.localeCompare(second.date));
@@ -3540,6 +3847,9 @@ async function initialize(itinerary) {
   state.dayDeletions = new Map(dayDeletionRows.filter(belongsToCurrentTrip).map((row) => [row.id, row]));
   state.extraDays = new Map(extraDayRows.filter(belongsToCurrentTrip).map((row) => [row.date, row]));
   state.dayTitles = new Map(dayTitleRows.filter(belongsToCurrentTrip).map((row) => [row.date, row]));
+  state.dayLocations = new Map(metaRows
+    .filter((row) => row.tripId === state.tripId && String(row.key).startsWith(`dayLocation:${state.tripId}:`) && row.date)
+    .map((row) => [row.date, row]));
   state.checklistItems = checklistItems;
   state.weatherCache = new Map(metaRows
     .filter((row) => String(row.key).startsWith(WEATHER_CACHE_PREFIX))
@@ -3639,7 +3949,10 @@ async function renderEmptyState() {
     try { await importSamplePackage(); }
     catch (error) { window.alert(error.message || "示例旅程导入失败"); }
   });
-  actions.append(importButton, sampleButton);
+  const newButton = createElement("button", "secondary-button", "新建旅程");
+  newButton.type = "button";
+  newButton.addEventListener("click", openNewTripDialog);
+  actions.append(importButton, sampleButton, newButton);
   empty.append(actions);
   elements.todayPanels.append(empty);
   elements.backupPanel.replaceChildren();
@@ -3650,12 +3963,33 @@ async function bindPackageControls() {
   elements.tripManagerTrigger?.addEventListener("click", openTripManager);
   elements.closeTripManager?.addEventListener("click", closeTripManager);
   elements.tripManagerImport?.addEventListener("click", () => elements.tripImportInput?.click());
+  elements.tripManagerNew?.addEventListener("click", openNewTripDialog);
   elements.tripManagerDialog?.addEventListener("click", (event) => {
     if (event.target === elements.tripManagerDialog) closeTripManager();
   });
   elements.tripManagerDialog?.addEventListener("cancel", (event) => {
     event.preventDefault();
     closeTripManager();
+  });
+  elements.newTripForm?.addEventListener("submit", saveNewTripForm);
+  elements.closeNewTrip?.addEventListener("click", closeNewTripDialog);
+  elements.cancelNewTrip?.addEventListener("click", closeNewTripDialog);
+  elements.newTripFirstCity?.addEventListener("input", updateNewTripCityOption);
+  elements.newTripDialog?.addEventListener("click", (event) => {
+    if (event.target === elements.newTripDialog) closeNewTripDialog();
+  });
+  elements.newTripDialog?.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeNewTripDialog();
+  });
+  elements.cityPickerForm?.addEventListener("submit", submitCityPickerSearch);
+  elements.closeCityPicker?.addEventListener("click", closeCityPicker);
+  elements.cityPickerDialog?.addEventListener("click", (event) => {
+    if (event.target === elements.cityPickerDialog) closeCityPicker();
+  });
+  elements.cityPickerDialog?.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeCityPicker();
   });
   elements.tripImportInput?.addEventListener("change", async () => {
     const file = elements.tripImportInput.files?.[0];
