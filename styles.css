@@ -720,6 +720,17 @@ footer {
   font-size: .72rem;
   font-weight: 650;
 }
+.trip-manager-action + .trip-manager-action {
+  border-top: 1px solid var(--line);
+}
+.trip-manager-action--danger,
+.trip-manager-action--danger small {
+  color: var(--danger);
+}
+.trip-manager-action--danger > span:first-child {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
 
 .today-summary-grid,
 .brief-grid {
@@ -1837,6 +1848,9 @@ footer {
   border-top: 1px solid var(--line);
   color: var(--muted);
 }
+.trip-tools {
+  margin-top: var(--space-5);
+}
 .backup-card__header {
   display: flex;
   align-items: flex-start;
@@ -1860,6 +1874,10 @@ footer {
 .backup-card__time {
   flex: 0 0 auto;
   text-align: right;
+}
+.backup-card__time--pending {
+  color: var(--accent);
+  font-weight: 800;
 }
 .backup-card__actions {
   display: flex;
@@ -2208,7 +2226,60 @@ footer {
 }
 .extra-date-actions {
   display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: .65rem;
+}
+.date-management-list {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+.date-management-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .7rem;
+  min-width: 0;
+  padding: .78rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.date-management-item__index {
+  color: var(--accent);
+  font-size: .7rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+.date-management-item__text {
+  display: grid;
+  gap: .12rem;
+  min-width: 0;
+}
+.date-management-item__text strong {
+  overflow: hidden;
+  font-size: .9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.date-management-item__text span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.date-management-item__delete {
+  min-height: 2rem;
+  border: 0;
+  border-radius: 0;
+  padding: 0 .2rem;
+  background: transparent;
+  color: var(--danger);
+  font-size: .74rem;
+  font-weight: 780;
+}
+.date-management-item__delete:hover,
+.date-management-item__delete:focus-visible {
+  text-decoration: underline;
 }
 .dialog-close {
   width: 2.4rem;
@@ -2392,6 +2463,16 @@ input[type="time"] {
     align-items: flex-end;
     flex-direction: column;
     gap: .35rem;
+  }
+  .date-management-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .date-management-item__index {
+    grid-column: 1 / -1;
+    margin-bottom: -.35rem;
+  }
+  .extra-date-actions {
+    grid-template-columns: minmax(0, 1fr);
   }
   .edit-dialog {
     top: auto;

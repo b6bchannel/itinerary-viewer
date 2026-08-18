@@ -8,10 +8,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Travel Plan">
   <title>Travel Plan</title>
-  <link rel="manifest" href="./manifest.json?v=20260815-new-trip-v1">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icons/ico/roadtrip-icon-192.png?v=20260815-new-trip-v1">
-  <link rel="icon" type="image/png" sizes="512x512" href="./icons/ico/roadtrip-icon-512.png?v=20260815-new-trip-v1">
-  <link rel="stylesheet" href="styles.css?v=20260815-new-trip-v1">
+  <link rel="manifest" href="./manifest.json?v=20260818-date-tools-v1">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/ico/roadtrip-icon-192.png?v=20260818-date-tools-v1">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icons/ico/roadtrip-icon-512.png?v=20260818-date-tools-v1">
+  <link rel="stylesheet" href="styles.css?v=20260818-date-tools-v1">
 </head>
 <body>
   <header class="page-header">
@@ -41,8 +41,10 @@
       </div>
       <div id="checklist-panel"></div>
       <div id="today-panels" class="today-panels"></div>
-      <div id="backup-panel"></div>
-      <div id="date-visibility-panel"></div>
+      <div class="trip-tools" aria-label="旅程工具">
+        <div data-backup-panel></div>
+        <div data-date-tools-panel></div>
+      </div>
     </section>
 
     <section id="full-itinerary-view" hidden>
@@ -92,6 +94,10 @@
         <div id="timeline" class="timeline"></div>
         <div id="full-day-note"></div>
       </section>
+      <div class="trip-tools" aria-label="旅程工具">
+        <div data-backup-panel></div>
+        <div data-date-tools-panel></div>
+      </div>
     </section>
   </main>
 
@@ -195,7 +201,7 @@
         </div>
         <button id="close-date-visibility" class="dialog-close" type="button" aria-label="关闭">×</button>
       </div>
-      <p class="date-visibility-intro">取消勾选不想显示的日期。这里只影响这台设备，不会修改原始 trip.json。</p>
+      <p class="date-visibility-intro">取消勾选不想在当前设备显示的日期。这里只改变显示方式，不会从旅程中删除日期。</p>
       <div id="date-visibility-list" class="date-visibility-list"></div>
       <div class="date-visibility-actions">
         <button id="cancel-date-visibility" class="secondary-button" type="button">不保存</button>
@@ -208,8 +214,8 @@
     <form id="extra-date-form" class="date-visibility-form" method="dialog">
       <div class="date-visibility-heading">
         <div>
-          <p class="eyebrow">Local date</p>
-          <h2>新增日期</h2>
+          <p class="eyebrow">Trip dates</p>
+          <h2>日期增减</h2>
         </div>
         <button id="close-extra-date" class="dialog-close" type="button" aria-label="关闭">×</button>
       </div>
@@ -217,7 +223,8 @@
         <button id="add-date-before" class="secondary-button" type="button">在最前加一天</button>
         <button id="add-date-after" class="secondary-button" type="button">在最后加一天</button>
       </div>
-      <p class="date-visibility-intro">新增日期仅保存在本机，如果加错日期可以用重置按钮恢复。</p>
+      <p class="date-visibility-intro">增减结果会保存到当前旅行包。导出最新版后，可在其他设备继续使用。</p>
+      <div id="date-management-list" class="date-management-list"></div>
     </form>
   </dialog>
 
@@ -323,6 +330,10 @@
         <button id="trip-manager-new" class="trip-manager-action" type="button">
           <span aria-hidden="true">＋</span>
           <span><strong>新建旅程</strong><small>从空白日期开始安排</small></span>
+        </button>
+        <button id="trip-manager-delete" class="trip-manager-action trip-manager-action--danger" type="button" hidden>
+          <span aria-hidden="true">×</span>
+          <span><strong>删除当前旅途</strong><small>删除这台设备中的旅途和本机修改</small></span>
         </button>
       </footer>
     </div>
@@ -1652,6 +1663,6 @@
 }
 
   </script>
-  <script src="app.js?v=20260815-new-trip-v1"></script>
+  <script src="app.js?v=20260818-date-tools-v1"></script>
 </body>
 </html>

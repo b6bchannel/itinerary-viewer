@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "20260815-new-trip-v1";
+const APP_VERSION = "20260818-date-tools-v1";
 const DB_NAME = "travel-plan-starter";
 const DB_VERSION = 7;
 const DEFAULT_TRIP_ID = "";
@@ -107,6 +107,7 @@ const elements = {
   closeTripManager: document.querySelector("#close-trip-manager"),
   tripManagerImport: document.querySelector("#trip-manager-import"),
   tripManagerNew: document.querySelector("#trip-manager-new"),
+  tripManagerDelete: document.querySelector("#trip-manager-delete"),
   tripImportInput: document.querySelector("#trip-import-input"),
   newTripDialog: document.querySelector("#new-trip-dialog"),
   newTripForm: document.querySelector("#new-trip-form"),
@@ -133,8 +134,8 @@ const elements = {
   todayView: document.querySelector("#today-view"),
   checklistPanel: document.querySelector("#checklist-panel"),
   todayPanels: document.querySelector("#today-panels"),
-  backupPanel: document.querySelector("#backup-panel"),
-  dateVisibilityPanel: document.querySelector("#date-visibility-panel"),
+  backupPanels: document.querySelectorAll("[data-backup-panel]"),
+  dateToolsPanels: document.querySelectorAll("[data-date-tools-panel]"),
   backupFileInput: document.querySelector("#backup-file-input"),
   fullView: document.querySelector("#full-itinerary-view"),
   tabs: document.querySelector("#day-tabs"),
@@ -177,6 +178,7 @@ const elements = {
   cancelDateVisibility: document.querySelector("#cancel-date-visibility"),
   extraDateDialog: document.querySelector("#extra-date-dialog"),
   extraDateForm: document.querySelector("#extra-date-form"),
+  dateManagementList: document.querySelector("#date-management-list"),
   closeExtraDate: document.querySelector("#close-extra-date"),
   addDateBefore: document.querySelector("#add-date-before"),
   addDateAfter: document.querySelector("#add-date-after"),
@@ -563,13 +565,14 @@ function createTripRow(item, current = false) {
     event.stopPropagation();
     renameTravelPackage(item.tripId);
   });
-  const remove = createElement("button", "trip-manager-mini trip-manager-mini--danger", "删除");
+  const remove = createElement("button", "trip-manager-mini trip-manager-mini--danger", "删除旅途");
   remove.type = "button";
   remove.addEventListener("click", (event) => {
     event.stopPropagation();
     deleteTravelPackage(item.tripId);
   });
-  actions.append(rename, remove);
+  actions.append(rename);
+  if (!current) actions.append(remove);
   row.append(actions);
   return row;
 }
@@ -598,19 +601,26 @@ async function deleteRowsForTrip(tripId) {
   }
 }
 
-async function deleteTravelPackage(tripId) {
+async function deleteTravelPackage(tripId, { skipConfirmation = false } = {}) {
   const item = await getFromStore("travelPackages", tripId);
   if (!item) return;
-  const ok = window.confirm(`删除“${tripPackageTitle(item)}”？\n\n只会删除这台设备里的旅行包和本机修改，不会影响你手里的 .travel.json 文件。`);
-  if (!ok) return;
-  await deleteFromStore("travelPackages", tripId);
-  await deleteRowsForTrip(tripId);
-  const packages = await loadTravelPackages();
-  if (packages.length) {
-    const next = packages[0];
-    await putInStore("meta", { key: "currentTripId", tripId: next.tripId, value: next.tripId });
+  if (!skipConfirmation) {
+    const ok = window.confirm(`确定删除整个旅途“${tripPackageTitle(item)}”？\n\n将删除这台设备中的旅行包、事项、备注和其他本机修改。已经导出的 .travel.json 文件不会被删除。`);
+    if (!ok) return;
   }
-  window.location.reload();
+  try {
+    await deleteFromStore("travelPackages", tripId);
+    await deleteRowsForTrip(tripId);
+    const packages = await loadTravelPackages();
+    if (packages.length) {
+      const next = packages.find((candidate) => candidate.tripId === state.tripId) || packages[0];
+      await putInStore("meta", { key: "currentTripId", tripId: next.tripId, value: next.tripId });
+    }
+    window.location.reload();
+  } catch (error) {
+    console.error(error);
+    window.alert("删除旅途失败，请稍后再试。");
+  }
 }
 
 async function importSamplePackage() {
@@ -648,6 +658,7 @@ async function renderTripMenu() {
   if (!state.database) return;
   const packages = await loadTravelPackages();
   const current = packages.find((item) => item.tripId === state.tripId) || null;
+  if (elements.tripManagerDelete) elements.tripManagerDelete.hidden = !current;
   if (elements.tripManagerTrigger) {
     elements.tripManagerTrigger.hidden = !current;
     if (current) {
@@ -898,60 +909,69 @@ function lucideFileIcon(kind) {
 }
 
 async function renderBackupPanel() {
-  if (!elements.backupPanel) return;
+  if (!elements.backupPanels?.length) return;
   let lastExported = "";
+  let lastSaved = "";
   if (state.database) {
     try {
       const metaRows = await getAllFromStore("meta");
       lastExported = metaRows.find((row) => row.key === `lastExportedAt:${state.tripId}`)?.value || "";
+      lastSaved = metaRows.find((row) => row.key === `lastSavedAt:${state.tripId}`)?.value || "";
     } catch (error) {
       console.warn("无法读取备份时间，仍显示备份入口", error);
     }
   }
-  elements.backupPanel.replaceChildren();
-  const card = createElement("section", "backup-card");
-  const header = createElement("div", "backup-card__header");
-  const title = createElement("div");
-  title.append(createElement("h3", "backup-card__title", "本机备份"));
-  title.append(createElement("p", "backup-card__hint", "只保存到这台 iPhone / 浏览器，不同步云端。"));
-  header.append(title);
-  header.append(createElement("p", "backup-card__time", formatBackupTime(lastExported)));
-  card.append(header);
-  const actions = createElement("div", "backup-card__actions");
-  const exportButton = createElement("button", "backup-button");
-  exportButton.type = "button";
-  exportButton.disabled = !state.database || !state.rawItinerary;
-  exportButton.append(lucideFileIcon("up"));
-  exportButton.append(createElement("span", "", "导出"));
-  exportButton.addEventListener("click", async () => {
-    exportButton.disabled = true;
-    exportButton.querySelector("span:last-child").textContent = "导出中";
-    try {
-      await exportLocalBackup();
-    } catch (error) {
-      console.error(error);
-      window.alert("导出失败，请稍后再试。");
-    } finally {
-      exportButton.disabled = false;
-      exportButton.querySelector("span:last-child").textContent = "导出";
-    }
+  const hasUnexportedChanges = Boolean(lastSaved && (!lastExported || new Date(lastSaved) > new Date(lastExported)));
+  elements.backupPanels.forEach((container) => {
+    container.replaceChildren();
+    const card = createElement("section", "backup-card");
+    const header = createElement("div", "backup-card__header");
+    const title = createElement("div");
+    title.append(createElement("h3", "backup-card__title", "本机备份"));
+    title.append(createElement("p", "backup-card__hint", "当前旅程保存在本机；导出最新版可带到其他设备。"));
+    header.append(title);
+    header.append(createElement(
+      "p",
+      `backup-card__time${hasUnexportedChanges ? " backup-card__time--pending" : ""}`,
+      hasUnexportedChanges ? "有尚未导出的更新" : formatBackupTime(lastExported)
+    ));
+    card.append(header);
+    const actions = createElement("div", "backup-card__actions");
+    const exportButton = createElement("button", "backup-button");
+    exportButton.type = "button";
+    exportButton.disabled = !state.database || !state.rawItinerary;
+    exportButton.append(lucideFileIcon("up"));
+    exportButton.append(createElement("span", "", "导出最新版"));
+    exportButton.addEventListener("click", async () => {
+      exportButton.disabled = true;
+      exportButton.querySelector("span:last-child").textContent = "导出中";
+      try {
+        await exportLocalBackup();
+      } catch (error) {
+        console.error(error);
+        window.alert("导出失败，请稍后再试。");
+      } finally {
+        exportButton.disabled = false;
+        exportButton.querySelector("span:last-child").textContent = "导出最新版";
+      }
+    });
+    const importButton = createElement("button", "backup-button backup-button--ghost");
+    importButton.type = "button";
+    importButton.disabled = !state.database;
+    importButton.append(lucideFileIcon("down"));
+    importButton.append(createElement("span", "", "导入"));
+    importButton.addEventListener("click", () => elements.backupFileInput?.click());
+    const resetButton = createElement("button", "backup-button backup-button--danger");
+    resetButton.type = "button";
+    resetButton.disabled = !state.database;
+    resetButton.append(createElement("span", "backup-button__icon", "↺"));
+    resetButton.append(createElement("span", "", "重置"));
+    resetButton.addEventListener("click", resetLocalDeviceData);
+    actions.append(exportButton, importButton, resetButton);
+    card.append(actions);
+    card.append(createElement("p", "backup-card__note", "日期或事项有变化时，请重新导出旅行包，再在其他设备导入。"));
+    container.append(card);
   });
-  const importButton = createElement("button", "backup-button backup-button--ghost");
-  importButton.type = "button";
-  importButton.disabled = !state.database;
-  importButton.append(lucideFileIcon("down"));
-  importButton.append(createElement("span", "", "导入"));
-  importButton.addEventListener("click", () => elements.backupFileInput?.click());
-  const resetButton = createElement("button", "backup-button backup-button--danger");
-  resetButton.type = "button";
-  resetButton.disabled = !state.database;
-  resetButton.append(createElement("span", "backup-button__icon", "↺"));
-  resetButton.append(createElement("span", "", "重置"));
-  resetButton.addEventListener("click", resetLocalDeviceData);
-  actions.append(exportButton, importButton, resetButton);
-  card.append(actions);
-  card.append(createElement("p", "backup-card__note", "旅行中建议每天晚上导出一次，保存到 iPhone“文件”App 或微信文件传输助手。"));
-  elements.backupPanel.append(card);
 }
 
 function mapTargetFromQuery(label, query) {
@@ -2054,13 +2074,13 @@ function deletedOriginalDates() {
     .sort();
 }
 
-function makeExtraDay(date) {
+function makeExtraDay(date, title = "新的一天") {
   return {
     date,
     dateOriginal: date,
     originalDate: date,
     theme: "",
-    route: "新的一天",
+    route: title,
     notes: "",
     eventIds: [],
     isExtraDay: true,
@@ -2074,6 +2094,89 @@ function makeExtraDay(date) {
     city: null,
     weatherLocation: WEATHER_LOCATIONS_BY_DATE[date] || null,
   };
+}
+
+function normalizeAutomaticDayTitles(days) {
+  return [...days]
+    .sort((first, second) => first.date.localeCompare(second.date))
+    .map((day, index) => {
+      const route = String(day.route || "").trim();
+      const isAutomatic = /^Day\s+\d+$/i.test(route) || (day.isExtraDay && route === "新的一天");
+      return {
+        ...day,
+        route: isAutomatic ? `Day ${index + 1}` : day.route,
+      };
+    });
+}
+
+function removeEventReferencesFromDay(day, removedIds) {
+  const keep = (id) => !removedIds.has(id);
+  const brief = day.brief || {};
+  return {
+    ...day,
+    eventIds: (day.eventIds || []).filter(keep),
+    brief: {
+      ...brief,
+      keyTransportEventIds: (brief.keyTransportEventIds || []).filter(keep),
+      importantEventIds: (brief.importantEventIds || []).filter(keep),
+      hotelChanges: (brief.hotelChanges || []).filter((hotel) => !hotel?.eventId || keep(hotel.eventId)),
+      hotelAtStart: brief.hotelAtStart?.eventId && !keep(brief.hotelAtStart.eventId) ? null : (brief.hotelAtStart || null),
+      hotelAtEndAssumed: brief.hotelAtEndAssumed?.eventId && !keep(brief.hotelAtEndAssumed.eventId)
+        ? null
+        : (brief.hotelAtEndAssumed || null),
+    },
+  };
+}
+
+async function persistTripStructure(days, events, updatedAt = new Date().toISOString()) {
+  const normalizedDays = normalizeAutomaticDayTitles(days);
+  if (!normalizedDays.length) throw new Error("每个旅途必须至少保留一天");
+  const first = normalizedDays[0];
+  const last = normalizedDays.at(-1);
+  const nextTrip = {
+    ...structuredClone(state.rawItinerary),
+    metadata: {
+      ...(state.rawItinerary?.metadata || {}),
+      dateStart: first.date,
+      dateEnd: last.date,
+      tripYear: Number(first.date.slice(0, 4)),
+      dayCount: normalizedDays.length,
+      recordCount: events.length,
+    },
+    days: structuredClone(normalizedDays),
+    events: structuredClone(events),
+  };
+  const nextPackage = {
+    ...structuredClone(state.travelPackage),
+    trip: nextTrip,
+    tripMeta: {
+      ...(state.travelPackage?.tripMeta || {}),
+      dateStart: first.date,
+      dateEnd: last.date,
+      dayCount: normalizedDays.length,
+      lastUpdated: updatedAt.slice(0, 10),
+    },
+  };
+  await saveTravelPackage(nextPackage);
+  state.rawItinerary = packageToItinerary(nextPackage);
+}
+
+async function migrateLegacyExtraDays() {
+  const rows = Array.from(state.extraDays.values()).filter(belongsToCurrentTrip);
+  if (!rows.length) return;
+  const existingDates = new Set((state.rawItinerary?.days || []).map((day) => day.date));
+  const additions = rows
+    .filter((row) => !existingDates.has(row.date))
+    .map((row) => makeExtraDay(row.date));
+  if (additions.length) {
+    await persistTripStructure(
+      [...state.rawItinerary.days, ...additions],
+      state.rawItinerary.events || [],
+      rows.map((row) => row.createdAt).filter(Boolean).sort().at(-1) || new Date().toISOString()
+    );
+  }
+  await Promise.all(rows.map((row) => deleteFromStore("extraDays", row.date)));
+  state.extraDays.clear();
 }
 
 function buildEffectiveItinerary(itinerary) {
@@ -2465,55 +2568,57 @@ function isOriginalDayVisible(originalDate) {
 }
 
 function renderDateVisibilityPanel() {
-  if (!elements.dateVisibilityPanel) return;
-  elements.dateVisibilityPanel.replaceChildren();
+  if (!elements.dateToolsPanels?.length) return;
   const allDays = originalDaysForVisibility();
+  elements.dateToolsPanels.forEach((container) => container.replaceChildren());
   if (!allDays.length) return;
   const hiddenCount = deletedOriginalDates().length;
-  const panel = createElement("section", "date-visibility-panel");
-  const button = createElement("button", "date-visibility-button");
-  button.type = "button";
-  button.append(
-    createElement("span", "date-visibility-button__icon", "◌"),
-    createElement("span", "", hiddenCount ? `管理显示日期 · 已隐藏 ${hiddenCount} 天` : "管理显示日期")
-  );
-  button.addEventListener("click", openDateVisibilityDialog);
-  const extraButton = createElement("button", "date-visibility-button");
-  extraButton.type = "button";
-  extraButton.append(
-    createElement("span", "date-visibility-button__icon", "+"),
-    createElement("span", "", "管理日期")
-  );
-  extraButton.addEventListener("click", openExtraDateDialog);
-  panel.append(button, extraButton);
-  panel.append(createElement("p", "date-visibility-note", "日期显示和新增日期都只影响本机，不会改原始行程。"));
-  elements.dateVisibilityPanel.append(panel);
+  elements.dateToolsPanels.forEach((container) => {
+    const panel = createElement("section", "date-visibility-panel");
+    const button = createElement("button", "date-visibility-button");
+    button.type = "button";
+    button.append(
+      createElement("span", "date-visibility-button__icon", "◌"),
+      createElement("span", "", hiddenCount ? `管理显示日期 · 已隐藏 ${hiddenCount} 天` : "管理显示日期")
+    );
+    button.addEventListener("click", openDateVisibilityDialog);
+    const dateButton = createElement("button", "date-visibility-button");
+    dateButton.type = "button";
+    dateButton.append(
+      createElement("span", "date-visibility-button__icon", "+ / −"),
+      createElement("span", "", "日期增减")
+    );
+    dateButton.addEventListener("click", openExtraDateDialog);
+    panel.append(button, dateButton);
+    panel.append(createElement("p", "date-visibility-note", "显示设置只影响当前设备；日期增减会更新当前旅行包。"));
+    container.append(panel);
+  });
 }
 
 function openExtraDateDialog() {
+  renderDateManagementList();
   elements.extraDateDialog?.showModal();
 }
 
 function closeExtraDateDialog() {
-  elements.extraDateDialog?.close();
+  if (elements.extraDateDialog?.open) elements.extraDateDialog.close();
 }
 
 async function addExtraDay(position) {
-  const days = state.itinerary?.days || state.rawItinerary?.days || [];
+  const days = [...(state.rawItinerary?.days || [])].sort((first, second) => first.date.localeCompare(second.date));
   if (!days.length) return;
   const date = position === "before"
     ? addDays(days[0].date, -1)
     : addDays(days[days.length - 1].date, 1);
-  if (state.extraDays.has(date) || state.rawItinerary.days.some((day) => day.date === date)) {
+  if (days.some((day) => day.date === date)) {
     window.alert("这个日期已经存在。");
     return;
   }
   const timestamp = new Date().toISOString();
-  const row = { date, id: date, tripId: state.tripId, createdAt: timestamp };
+  const newDay = makeExtraDay(date, position === "before" ? "Day 1" : `Day ${days.length + 1}`);
   try {
-    state.extraDays.set(date, row);
-    await putInStore("extraDays", row);
-    await recordChange("add-extra-day", date, null, row);
+    await persistTripStructure([...days, newDay], state.rawItinerary.events || [], timestamp);
+    await recordChange("add-trip-day", date, null, newDay);
     await markLocalSave(timestamp);
     applyEffectiveItinerary(date);
     closeExtraDateDialog();
@@ -2522,6 +2627,135 @@ async function addExtraDay(position) {
   } catch (error) {
     console.error(error);
     window.alert("新增日期失败，请稍后再试。");
+  }
+}
+
+function tripDaysForManagement() {
+  return [...(state.rawItinerary?.days || [])].sort((first, second) => first.date.localeCompare(second.date));
+}
+
+function managedEventsForDate(date, { includeDeleted = false } = {}) {
+  const events = [];
+  (state.rawItinerary?.events || []).forEach((base) => {
+    const event = mergeEvent(base, state.overlays.get(base.id));
+    if (event.date === date && (includeDeleted || !event.isDeleted)) events.push(event);
+  });
+  state.customEvents.forEach((event) => {
+    if (event.date === date) events.push({ ...event, isCustom: true, isDeleted: false });
+  });
+  return events;
+}
+
+function renderDateManagementList() {
+  if (!elements.dateManagementList) return;
+  elements.dateManagementList.replaceChildren();
+  tripDaysForManagement().forEach((day, index) => {
+    const locationOverride = state.dayLocations.get(day.date);
+    const displayDay = {
+      ...day,
+      ...(locationOverride || {}),
+      titleOverride: state.dayTitles.get(day.date)?.title || "",
+    };
+    const events = managedEventsForDate(day.date);
+    const note = state.dayNotes.get(day.date)?.text?.trim();
+    const row = createElement("div", "date-management-item");
+    const text = createElement("div", "date-management-item__text");
+    text.append(
+      createElement("strong", "", `${shortDate(day.date)} · ${dayTitleText(displayDay)}`),
+      createElement("span", "", [
+        primaryCityForDay(displayDay),
+        `${events.length} 项行程`,
+        note ? "有当天备注" : "",
+        state.dayDeletions.get(day.date)?.deleted ? "当前设备已隐藏" : "",
+      ].filter(Boolean).join(" · "))
+    );
+    const remove = createElement("button", "date-management-item__delete", "删除日期");
+    remove.type = "button";
+    remove.setAttribute("aria-label", `删除${fullDate(day.date)} ${dayTitleText(displayDay)}`);
+    remove.addEventListener("click", () => requestDeleteTripDay(day.date));
+    row.append(createElement("span", "date-management-item__index", `Day ${index + 1}`), text, remove);
+    elements.dateManagementList.append(row);
+  });
+}
+
+async function requestDeleteTripDay(date) {
+  const days = tripDaysForManagement();
+  const day = days.find((item) => item.date === date);
+  if (!day) return;
+  if (days.length === 1) {
+    const deleteTrip = window.confirm(`每个旅途必须有至少一天。\n\n是否想删除整个旅途“${tripPackageTitle(state.travelPackage)}”？`);
+    if (deleteTrip) await deleteTravelPackage(state.tripId, { skipConfirmation: true });
+    return;
+  }
+  const events = managedEventsForDate(date);
+  const hasNote = Boolean(state.dayNotes.get(date)?.text?.trim());
+  const locationOverride = state.dayLocations.get(date);
+  const displayDay = {
+    ...day,
+    ...(locationOverride || {}),
+    titleOverride: state.dayTitles.get(date)?.title || "",
+  };
+  const details = [
+    events.length ? `${events.length} 项行程事项` : "",
+    hasNote ? "当天备注" : "",
+    weatherLocationForDay(displayDay) ? "当天城市信息" : "",
+  ].filter(Boolean);
+  const detailText = details.length ? `\n\n同时会删除：${details.join("、")}。` : "";
+  const confirmed = window.confirm(`确定删除 ${fullDate(date)}“${dayTitleText(displayDay)}”？${detailText}\n\n此操作会更新当前旅行包；导出最新版后，其他设备也会使用新的日期。`);
+  if (!confirmed) return;
+  await deleteTripDay(date);
+}
+
+async function deleteTripDay(date) {
+  const days = tripDaysForManagement();
+  const dayIndex = days.findIndex((day) => day.date === date);
+  if (dayIndex < 0 || days.length <= 1) return;
+  const removedEvents = managedEventsForDate(date, { includeDeleted: true });
+  const removedIds = new Set(removedEvents.map((event) => event.id));
+  const nextDays = days
+    .filter((day) => day.date !== date)
+    .map((day) => removeEventReferencesFromDay(day, removedIds));
+  const nextEvents = (state.rawItinerary.events || []).filter((event) => !removedIds.has(event.id));
+  const preferredDate = days[dayIndex + 1]?.date || days[dayIndex - 1]?.date;
+  const timestamp = new Date().toISOString();
+  const snapshot = {
+    day: structuredClone(days[dayIndex]),
+    events: structuredClone(removedEvents),
+    note: state.dayNotes.get(date) || null,
+    location: state.dayLocations.get(date) || null,
+  };
+  try {
+    await persistTripStructure(nextDays, nextEvents, timestamp);
+    for (const event of removedEvents) {
+      if (event.isCustom) {
+        state.customEvents.delete(event.id);
+        await deleteFromStore("customEvents", event.id);
+      } else if (state.overlays.has(event.id)) {
+        state.overlays.delete(event.id);
+        await deleteFromStore("overlays", event.id);
+      }
+    }
+    state.dayNotes.delete(date);
+    state.dayTitles.delete(date);
+    state.dayLocations.delete(date);
+    state.dayDeletions.delete(date);
+    state.extraDays.delete(date);
+    await Promise.all([
+      deleteFromStore("dayNotes", date),
+      deleteFromStore("dayTitles", date),
+      deleteFromStore("meta", dayLocationKey(date)),
+      deleteFromStore("dayDeletions", date),
+      deleteFromStore("extraDays", date),
+    ]);
+    await recordChange("delete-trip-day", date, snapshot, null);
+    await markLocalSave(timestamp);
+    applyEffectiveItinerary(preferredDate);
+    closeExtraDateDialog();
+    renderCurrentView();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (error) {
+    console.error(error);
+    window.alert("删除日期失败，请稍后再试。");
   }
 }
 
@@ -3227,7 +3461,7 @@ function createRouteOverview(day) {
   return section;
 }
 
-function renderTodayPanel(day, index, position, isLastPanel) {
+function renderTodayPanel(day, index, position) {
   const panel = createElement("section", "today-panel");
   const header = createElement("header", "today-panel__header");
   const heading = createElement("div");
@@ -3291,14 +3525,6 @@ function renderTodayPanel(day, index, position, isLastPanel) {
   const actions = createElement("div", "today-actions timeline");
   actions.replaceChildren(...events.map((event) => renderEvent(event, executionState)));
   panel.append(actions);
-  if (isLastPanel && elements.backupPanel) {
-    panel.append(elements.backupPanel);
-    renderBackupPanel();
-    if (elements.dateVisibilityPanel) {
-      panel.append(elements.dateVisibilityPanel);
-      renderDateVisibilityPanel();
-    }
-  }
   return panel;
 }
 
@@ -3313,8 +3539,10 @@ function renderTodayMode() {
   renderChecklistPanel();
   const indices = focusDayIndices();
   elements.todayPanels.replaceChildren(...indices.map((index, position) => (
-    renderTodayPanel(state.itinerary.days[index], index, position, position === indices.length - 1)
+    renderTodayPanel(state.itinerary.days[index], index, position)
   )));
+  renderBackupPanel();
+  renderDateVisibilityPanel();
   window.setTimeout(scrollTodayToCurrentAction, 180);
 }
 
@@ -3807,6 +4035,8 @@ function renderDay() {
   elements.fullDayNote.replaceChildren(createDayNoteEditor(day.date));
   elements.timeline.replaceChildren(...events.map((event) => renderEvent(event, executionState)));
   renderTabs();
+  renderBackupPanel();
+  renderDateVisibilityPanel();
 
   const activeTab = elements.tabs.querySelector('[aria-current="date"]');
   if (activeTab) activeTab.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
@@ -3850,6 +4080,7 @@ async function initialize(itinerary) {
   state.dayLocations = new Map(metaRows
     .filter((row) => row.tripId === state.tripId && String(row.key).startsWith(`dayLocation:${state.tripId}:`) && row.date)
     .map((row) => [row.date, row]));
+  await migrateLegacyExtraDays();
   state.checklistItems = checklistItems;
   state.weatherCache = new Map(metaRows
     .filter((row) => String(row.key).startsWith(WEATHER_CACHE_PREFIX))
@@ -3955,7 +4186,8 @@ async function renderEmptyState() {
   actions.append(importButton, sampleButton, newButton);
   empty.append(actions);
   elements.todayPanels.append(empty);
-  elements.backupPanel.replaceChildren();
+  elements.backupPanels?.forEach((container) => container.replaceChildren());
+  elements.dateToolsPanels?.forEach((container) => container.replaceChildren());
   await renderTripMenu();
 }
 
@@ -3964,6 +4196,9 @@ async function bindPackageControls() {
   elements.closeTripManager?.addEventListener("click", closeTripManager);
   elements.tripManagerImport?.addEventListener("click", () => elements.tripImportInput?.click());
   elements.tripManagerNew?.addEventListener("click", openNewTripDialog);
+  elements.tripManagerDelete?.addEventListener("click", () => {
+    if (state.tripId) deleteTravelPackage(state.tripId);
+  });
   elements.tripManagerDialog?.addEventListener("click", (event) => {
     if (event.target === elements.tripManagerDialog) closeTripManager();
   });

@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "20260815-new-trip-v1";
+const APP_VERSION = "20260818-date-tools-v1";
 const CACHE_PREFIX = "itinerary-viewer-cache-";
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const versioned = (path) => `${path}?v=${APP_VERSION}`;
