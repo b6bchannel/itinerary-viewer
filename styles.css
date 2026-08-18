@@ -2229,6 +2229,38 @@ footer {
   grid-template-columns: 1fr 1fr;
   gap: .65rem;
 }
+.date-management-summary {
+  margin: 0;
+  padding: .7rem .8rem;
+  border-left: 3px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+.date-management-summary--changed {
+  border-left-color: var(--accent);
+  color: var(--text);
+}
+.date-management-summary--error {
+  border-left-color: var(--danger);
+  color: var(--danger);
+}
+.date-management-actions {
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  margin: 0 calc(var(--space-4) * -1) calc(var(--space-4) * -1);
+  padding: .8rem var(--space-4) calc(.8rem + env(safe-area-inset-bottom));
+  padding-top: .7rem;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: 0 -.7rem 1rem rgb(20 16 13 / 5%);
+}
+.date-management-actions .primary-button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
 .date-management-list {
   display: grid;
   border-top: 1px solid var(--line);

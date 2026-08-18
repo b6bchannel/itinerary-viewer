@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "20260818-date-tools-v1";
+const APP_VERSION = "20260818-date-draft-v1";
 const DB_NAME = "travel-plan-starter";
 const DB_VERSION = 7;
 const DEFAULT_TRIP_ID = "";
@@ -92,6 +92,8 @@ const state = {
   editingDayDate: null,
   editingCityDate: null,
   travelPackage: null,
+  dateManagementDraft: null,
+  dateManagementApplying: false,
 };
 
 const elements = {
@@ -179,7 +181,10 @@ const elements = {
   extraDateDialog: document.querySelector("#extra-date-dialog"),
   extraDateForm: document.querySelector("#extra-date-form"),
   dateManagementList: document.querySelector("#date-management-list"),
+  dateManagementSummary: document.querySelector("#date-management-summary"),
   closeExtraDate: document.querySelector("#close-extra-date"),
+  cancelDateChanges: document.querySelector("#cancel-date-changes"),
+  applyDateChanges: document.querySelector("#apply-date-changes"),
   addDateBefore: document.querySelector("#add-date-before"),
   addDateAfter: document.querySelector("#add-date-after"),
   dayTitleDialog: document.querySelector("#day-title-dialog"),
@@ -2596,16 +2601,65 @@ function renderDateVisibilityPanel() {
 }
 
 function openExtraDateDialog() {
+  state.dateManagementDraft = normalizeAutomaticDayTitles(
+    structuredClone(state.rawItinerary?.days || [])
+  );
+  state.dateManagementApplying = false;
   renderDateManagementList();
   elements.extraDateDialog?.showModal();
 }
 
 function closeExtraDateDialog() {
+  state.dateManagementDraft = null;
+  state.dateManagementApplying = false;
   if (elements.extraDateDialog?.open) elements.extraDateDialog.close();
 }
 
-async function addExtraDay(position) {
-  const days = [...(state.rawItinerary?.days || [])].sort((first, second) => first.date.localeCompare(second.date));
+function originalTripDays() {
+  return [...(state.rawItinerary?.days || [])].sort((first, second) => first.date.localeCompare(second.date));
+}
+
+function tripDaysForManagement() {
+  const days = state.dateManagementDraft || originalTripDays();
+  return [...days].sort((first, second) => first.date.localeCompare(second.date));
+}
+
+function dateManagementChanges() {
+  const originalDates = originalTripDays().map((day) => day.date);
+  const draftDates = tripDaysForManagement().map((day) => day.date);
+  const originalSet = new Set(originalDates);
+  const draftSet = new Set(draftDates);
+  return {
+    addedDates: draftDates.filter((date) => !originalSet.has(date)),
+    removedDates: originalDates.filter((date) => !draftSet.has(date)),
+  };
+}
+
+function updateDateManagementSummary(errorText = "") {
+  if (!elements.dateManagementSummary) return;
+  const { addedDates, removedDates } = dateManagementChanges();
+  const changed = addedDates.length > 0 || removedDates.length > 0;
+  const parts = [];
+  if (addedDates.length) parts.push(`新增 ${addedDates.length} 天（${addedDates.map(shortDate).join("、")}）`);
+  if (removedDates.length) parts.push(`删除 ${removedDates.length} 天（${removedDates.map(shortDate).join("、")}）`);
+  elements.dateManagementSummary.textContent = errorText || (changed
+    ? `待应用：${parts.join(" · ")} · 应用后共 ${tripDaysForManagement().length} 天`
+    : `尚未修改 · 共 ${tripDaysForManagement().length} 天`);
+  elements.dateManagementSummary.classList.toggle("date-management-summary--changed", changed && !errorText);
+  elements.dateManagementSummary.classList.toggle("date-management-summary--error", Boolean(errorText));
+  if (elements.applyDateChanges) {
+    elements.applyDateChanges.disabled = !changed || state.dateManagementApplying;
+    elements.applyDateChanges.textContent = state.dateManagementApplying ? "正在应用…" : "应用更改";
+  }
+}
+
+function draftDayForDate(date, title) {
+  const original = originalTripDays().find((day) => day.date === date);
+  return original ? structuredClone(original) : makeExtraDay(date, title);
+}
+
+function addExtraDay(position) {
+  const days = tripDaysForManagement();
   if (!days.length) return;
   const date = position === "before"
     ? addDays(days[0].date, -1)
@@ -2614,24 +2668,9 @@ async function addExtraDay(position) {
     window.alert("这个日期已经存在。");
     return;
   }
-  const timestamp = new Date().toISOString();
-  const newDay = makeExtraDay(date, position === "before" ? "Day 1" : `Day ${days.length + 1}`);
-  try {
-    await persistTripStructure([...days, newDay], state.rawItinerary.events || [], timestamp);
-    await recordChange("add-trip-day", date, null, newDay);
-    await markLocalSave(timestamp);
-    applyEffectiveItinerary(date);
-    closeExtraDateDialog();
-    renderCurrentView();
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  } catch (error) {
-    console.error(error);
-    window.alert("新增日期失败，请稍后再试。");
-  }
-}
-
-function tripDaysForManagement() {
-  return [...(state.rawItinerary?.days || [])].sort((first, second) => first.date.localeCompare(second.date));
+  const newDay = draftDayForDate(date, position === "before" ? "Day 1" : `Day ${days.length + 1}`);
+  state.dateManagementDraft = normalizeAutomaticDayTitles([...days, newDay]);
+  renderDateManagementList();
 }
 
 function managedEventsForDate(date, { includeDeleted = false } = {}) {
@@ -2649,6 +2688,7 @@ function managedEventsForDate(date, { includeDeleted = false } = {}) {
 function renderDateManagementList() {
   if (!elements.dateManagementList) return;
   elements.dateManagementList.replaceChildren();
+  const originalDates = new Set(originalTripDays().map((day) => day.date));
   tripDaysForManagement().forEach((day, index) => {
     const locationOverride = state.dayLocations.get(day.date);
     const displayDay = {
@@ -2665,6 +2705,7 @@ function renderDateManagementList() {
       createElement("span", "", [
         primaryCityForDay(displayDay),
         `${events.length} 项行程`,
+        originalDates.has(day.date) ? "" : "待新增",
         note ? "有当天备注" : "",
         state.dayDeletions.get(day.date)?.deleted ? "当前设备已隐藏" : "",
       ].filter(Boolean).join(" · "))
@@ -2676,6 +2717,7 @@ function renderDateManagementList() {
     row.append(createElement("span", "date-management-item__index", `Day ${index + 1}`), text, remove);
     elements.dateManagementList.append(row);
   });
+  updateDateManagementSummary();
 }
 
 async function requestDeleteTripDay(date) {
@@ -2701,53 +2743,64 @@ async function requestDeleteTripDay(date) {
     weatherLocationForDay(displayDay) ? "当天城市信息" : "",
   ].filter(Boolean);
   const detailText = details.length ? `\n\n同时会删除：${details.join("、")}。` : "";
-  const confirmed = window.confirm(`确定删除 ${fullDate(date)}“${dayTitleText(displayDay)}”？${detailText}\n\n此操作会更新当前旅行包；导出最新版后，其他设备也会使用新的日期。`);
+  const confirmed = window.confirm(`确定从待应用排列中移除 ${fullDate(date)}“${dayTitleText(displayDay)}”？${detailText}\n\n点击“应用更改”后才会真正删除。`);
   if (!confirmed) return;
-  await deleteTripDay(date);
+  state.dateManagementDraft = normalizeAutomaticDayTitles(days.filter((item) => item.date !== date));
+  renderDateManagementList();
 }
 
-async function deleteTripDay(date) {
-  const days = tripDaysForManagement();
-  const dayIndex = days.findIndex((day) => day.date === date);
-  if (dayIndex < 0 || days.length <= 1) return;
-  const removedEvents = managedEventsForDate(date, { includeDeleted: true });
-  const removedIds = new Set(removedEvents.map((event) => event.id));
-  const nextDays = days
-    .filter((day) => day.date !== date)
-    .map((day) => removeEventReferencesFromDay(day, removedIds));
-  const nextEvents = (state.rawItinerary.events || []).filter((event) => !removedIds.has(event.id));
-  const preferredDate = days[dayIndex + 1]?.date || days[dayIndex - 1]?.date;
+async function applyDateManagementChanges(event) {
+  event?.preventDefault();
+  if (state.dateManagementApplying || !state.dateManagementDraft) return;
+  const { addedDates, removedDates } = dateManagementChanges();
+  if (!addedDates.length && !removedDates.length) {
+    closeExtraDateDialog();
+    return;
+  }
+  const draftDays = tripDaysForManagement();
+  const removedEvents = removedDates.flatMap((date) => managedEventsForDate(date, { includeDeleted: true }));
+  const uniqueRemovedEvents = Array.from(new Map(removedEvents.map((item) => [item.id, item])).values());
+  const removedIds = new Set(uniqueRemovedEvents.map((item) => item.id));
+  const nextDays = draftDays.map((day) => removeEventReferencesFromDay(day, removedIds));
+  const nextEvents = (state.rawItinerary.events || []).filter((item) => !removedIds.has(item.id));
+  const currentDate = state.itinerary?.days?.[state.selectedIndex]?.date || "";
+  const preferredDate = draftDays.find((day) => day.date >= currentDate)?.date || draftDays.at(-1)?.date;
   const timestamp = new Date().toISOString();
-  const snapshot = {
-    day: structuredClone(days[dayIndex]),
-    events: structuredClone(removedEvents),
+  const originalDays = originalTripDays();
+  const removedSnapshots = removedDates.map((date) => ({
+    day: structuredClone(originalDays.find((day) => day.date === date)),
+    events: structuredClone(uniqueRemovedEvents.filter((item) => item.date === date)),
     note: state.dayNotes.get(date) || null,
     location: state.dayLocations.get(date) || null,
-  };
+  }));
+  state.dateManagementApplying = true;
+  updateDateManagementSummary();
   try {
     await persistTripStructure(nextDays, nextEvents, timestamp);
-    for (const event of removedEvents) {
-      if (event.isCustom) {
-        state.customEvents.delete(event.id);
-        await deleteFromStore("customEvents", event.id);
-      } else if (state.overlays.has(event.id)) {
-        state.overlays.delete(event.id);
-        await deleteFromStore("overlays", event.id);
+    for (const item of uniqueRemovedEvents) {
+      if (item.isCustom) {
+        state.customEvents.delete(item.id);
+        await deleteFromStore("customEvents", item.id);
+      } else if (state.overlays.has(item.id)) {
+        state.overlays.delete(item.id);
+        await deleteFromStore("overlays", item.id);
       }
     }
-    state.dayNotes.delete(date);
-    state.dayTitles.delete(date);
-    state.dayLocations.delete(date);
-    state.dayDeletions.delete(date);
-    state.extraDays.delete(date);
-    await Promise.all([
-      deleteFromStore("dayNotes", date),
-      deleteFromStore("dayTitles", date),
-      deleteFromStore("meta", dayLocationKey(date)),
-      deleteFromStore("dayDeletions", date),
-      deleteFromStore("extraDays", date),
-    ]);
-    await recordChange("delete-trip-day", date, snapshot, null);
+    for (const date of removedDates) {
+      state.dayNotes.delete(date);
+      state.dayTitles.delete(date);
+      state.dayLocations.delete(date);
+      state.dayDeletions.delete(date);
+      state.extraDays.delete(date);
+      await Promise.all([
+        deleteFromStore("dayNotes", date),
+        deleteFromStore("dayTitles", date),
+        deleteFromStore("meta", dayLocationKey(date)),
+        deleteFromStore("dayDeletions", date),
+        deleteFromStore("extraDays", date),
+      ]);
+    }
+    await recordChange("apply-trip-date-changes", state.tripId, { removed: removedSnapshots }, { addedDates });
     await markLocalSave(timestamp);
     applyEffectiveItinerary(preferredDate);
     closeExtraDateDialog();
@@ -2755,7 +2808,8 @@ async function deleteTripDay(date) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (error) {
     console.error(error);
-    window.alert("删除日期失败，请稍后再试。");
+    state.dateManagementApplying = false;
+    updateDateManagementSummary("应用失败，请稍后再试。草稿仍保留在这里。");
   }
 }
 
@@ -4130,6 +4184,8 @@ async function initialize(itinerary) {
     closeDateVisibilityDialog();
   });
   elements.closeExtraDate?.addEventListener("click", closeExtraDateDialog);
+  elements.cancelDateChanges?.addEventListener("click", closeExtraDateDialog);
+  elements.extraDateForm?.addEventListener("submit", applyDateManagementChanges);
   elements.extraDateDialog?.addEventListener("cancel", (event) => {
     event.preventDefault();
     closeExtraDateDialog();
